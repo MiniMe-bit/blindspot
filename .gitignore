@@ -9,3 +9,6 @@ coverage/
 
 # Local tooling
 .claude/
+
+# Hunter accounts (password hashes) and first-run credentials
+/data/

@@ -23,6 +23,10 @@ export interface ClientOrg {
   name: string;
   industry: IndustryVertical;
   description: string;
+  /** Bundled brand logo (see src/data/clientLogos.ts). */
+  logoSlug?: string;
+  /** Optional logo image URL, used when there is no bundled logo. */
+  logoUrl?: string;
   primaryTelemetry: string[];
   threatProfile: {
     primaryAdversaries: string[];
@@ -147,11 +151,33 @@ export interface HuntReport {
   createdAt: string;
   updatedAt?: string;
   isTHR?: boolean;
+  /** Hunt phase (10 hunts per phase). Older records may not have one. */
+  phase?: number;
   reportDate?: string;
   thrDocument?: ThreatHuntReportDocument;
 }
 
-export type TodayHuntSource = 'CVE / CISA KEV' | 'Ransomware Campaign' | 'Threat Actor Intel' | 'Coverage Gap';
+export type TodayHuntSource =
+  | 'CVE / CISA KEV'
+  | 'Ransomware'
+  | 'APT'
+  | 'Malware'
+  | 'ClickFix'
+  | 'Threat Actor Intel'
+  | 'Coverage Gap';
+
+/** Query platforms hunters can pull a hunt's query for. */
+export type HuntPlatform = 'crowdstrike' | 'defender' | 'trendmicro' | 'elastic' | 'sigma' | 'splunk';
+
+export interface HuntReference {
+  title: string;
+  url: string;
+  publisher?: string;
+  /** Added by a hunter in this workspace (vs. shipped with the hunt). */
+  addedBy?: string;
+  /** Suggested by the AI generator; the link has not been checked. */
+  unverified?: boolean;
+}
 
 export interface AIHuntScoreBreakdown {
   threatRelevance: number; // 0 - 100%
@@ -180,6 +206,10 @@ export interface TodayHunt {
     language: 'KQL' | 'SPL' | 'Sigma';
     code: string;
   };
+  /** Equivalent hunting query per platform. Missing platforms have no query yet. */
+  platformQueries?: Partial<Record<HuntPlatform, string>>;
+  /** Blogs and advisories for background reading. */
+  references?: HuntReference[];
   expectedBaseline: string; // What normal looks like
   truePositiveExample: string; // Log pattern indicating true positive
   aiHuntScore: AIHuntScoreBreakdown;
@@ -189,6 +219,27 @@ export interface TodayHunt {
 }
 
 export type TodayHuntStatus = 'queued' | 'in-progress' | 'done';
+
+/** One row of a hunter's daily threat intel IOC / CVE-check hunting sheet. */
+export interface IocHunt {
+  id: string;
+  clientId: string;
+  /** The sheet's own row number / reference, as written by the hunter. */
+  number: string;
+  title: string;
+  description: string;
+  /** Malware, ClickFix, Ransomware, CVE, Stealer, APT, ... (free text from the sheet, normalised). */
+  category: string;
+  queryCount: number;
+  /** What the queries found, e.g. "No hits" or "2 hosts matched". */
+  results: string;
+  /** Escalation reference: task ID / ServiceNow ID. Empty when not escalated. */
+  escalation: string;
+  queries: string;
+  date?: string;
+  origin: 'demo' | 'upload';
+  importedAt: string;
+}
 
 /** Prefill passed to the hunt report form when starting a report from another page. */
 export interface ReportDraft {
@@ -234,6 +285,7 @@ export interface DeckSlide {
     | 'title'
     | 'executive_summary'
     | 'kpi_performance'
+    | 'ioc_hunting'
     | 'mitre_coverage_heatmap'
     | 'severity_distribution'
     | 'key_findings'

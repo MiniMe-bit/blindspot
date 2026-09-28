@@ -3,10 +3,12 @@ import { DeckSlide, GeneratedDeck } from '../types';
 import { MITRE_TACTICS, MITRE_TECHNIQUES } from '../data/mitreAttck';
 import { fetchDeckNarrative } from '../services/api';
 import { useApp } from '../app/AppContext';
+import { isEscalated, summarise } from '../lib/iocHunts';
+import { exportDeckPptx } from '../lib/deckPptx';
 import { Button, PageHeader, Segmented, useToast } from './ui';
 import {
   Sparkles,
-  Printer,
+  FileDown,
   ChevronLeft,
   ChevronRight,
   Maximize2,
@@ -20,7 +22,8 @@ const QUARTER_LABEL = `Q${Math.floor(now.getMonth() / 3) + 1} ${now.getFullYear(
 const MONTH_LABEL = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
 export const DeckGeneratorView: React.FC = () => {
-  const { currentClient, clientReports } = useApp();
+  const { currentClient, clientReports, clientIocHunts } = useApp();
+  const [exporting, setExporting] = useState(false);
   const toast = useToast();
   const [periodType, setPeriodType] = useState<'monthly' | 'quarterly'>('quarterly');
   const [periodLabel, setPeriodLabel] = useState(`${QUARTER_LABEL} threat hunting briefing`);
@@ -49,6 +52,13 @@ export const DeckGeneratorView: React.FC = () => {
   const criticalHunts = clientReports.filter((r) => r.severityScore?.severityLevel === 'Critical');
   const highHunts = clientReports.filter((r) => r.severityScore?.severityLevel === 'High');
   const mediumHunts = clientReports.filter((r) => r.severityScore?.severityLevel === 'Medium');
+
+  // Daily IOC hunts in the deck period (rows without a date are included).
+  const periodStart = periodType === 'monthly'
+    ? new Date(now.getFullYear(), now.getMonth(), 1)
+    : new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+  const periodIoc = clientIocHunts.filter((h) => !h.date || new Date(h.date) >= periodStart);
+  const iocSummary = summarise(periodIoc);
 
   // Build default or AI-driven slides
   const buildDeck = (narrative?: {
@@ -128,6 +138,21 @@ export const DeckGeneratorView: React.FC = () => {
           }
         }
       },
+      // Daily threat intel IOC hunting
+      {
+        id: 'slide-ioc',
+        title: 'Daily Threat Intel IOC Hunting',
+        subtitle: 'IOC sweeps and CVE exposure checks performed against your environment',
+        type: 'ioc_hunting',
+        content: {
+          ...iocSummary,
+          periodNote: periodType === 'monthly' ? MONTH_LABEL : QUARTER_LABEL,
+          escalations: periodIoc
+            .filter(isEscalated)
+            .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
+            .map((h) => ({ date: h.date, title: h.title, escalation: h.escalation, results: h.results })),
+        },
+      },
       // Slide 4: MITRE Heatmap & Matrix Coverage
       {
         id: 'slide-4',
@@ -203,7 +228,7 @@ export const DeckGeneratorView: React.FC = () => {
 
   useEffect(() => {
     setDeck(buildDeck());
-  }, [currentClient.id, periodLabel]);
+  }, [currentClient.id, periodLabel, clientIocHunts]);
 
   const handleGenerateAiDeck = async () => {
     setGenerating(true);
@@ -224,8 +249,17 @@ export const DeckGeneratorView: React.FC = () => {
     }
   };
 
-  const handlePrintDeck = () => {
-    window.print();
+  const handleExport = async () => {
+    if (!deck) return;
+    setExporting(true);
+    try {
+      await exportDeckPptx(deck, currentClient);
+      toast('PowerPoint deck downloaded.');
+    } catch {
+      toast('Could not build the PowerPoint file.', 'error');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const currentSlide = deck?.slides[activeSlideIndex];
@@ -251,11 +285,11 @@ export const DeckGeneratorView: React.FC = () => {
                   { value: 'quarterly', label: 'Quarterly' },
                 ]}
               />
-              <Button icon={Printer} onClick={handlePrintDeck}>
-                Print / PDF
-              </Button>
-              <Button variant="primary" icon={Sparkles} loading={generating} onClick={handleGenerateAiDeck}>
+              <Button icon={Sparkles} loading={generating} onClick={handleGenerateAiDeck}>
                 Draft narrative with AI
+              </Button>
+              <Button variant="primary" icon={FileDown} loading={exporting} onClick={handleExport}>
+                Export PowerPoint
               </Button>
             </>
           }
@@ -386,6 +420,57 @@ export const DeckGeneratorView: React.FC = () => {
                       <span className="text-amber-400">FP: {currentSlide.content.breakdown.falsePositives}</span>
                       <span className="text-slate-400">No Result: {currentSlide.content.breakdown.noResults}</span>
                       <span className="text-cyan-400">Follow-up: {currentSlide.content.breakdown.needsFollowUp}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Type: Daily IOC hunting */}
+              {currentSlide.type === 'ioc_hunting' && (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    {[
+                      { label: 'IOC hunts performed', value: currentSlide.content.total, color: 'text-fg' },
+                      { label: 'Hunts with results', value: currentSlide.content.withResults, color: 'text-warning-text' },
+                      { label: 'Escalated', value: currentSlide.content.escalated, color: 'text-danger-text' },
+                      { label: 'Queries run', value: currentSlide.content.totalQueries, color: 'text-teal-text' },
+                    ].map((k) => (
+                      <div key={k.label} className="space-y-1 rounded-lg border border-border bg-canvas p-5 text-center">
+                        <div className="text-xs font-semibold uppercase text-fg-muted">{k.label}</div>
+                        <div className={`text-4xl font-bold tabular-nums ${k.color}`}>{k.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="rounded-lg border border-border bg-canvas p-4">
+                      <div className="mb-3 text-xs font-semibold uppercase text-fg-muted">Threat category weightage</div>
+                      {currentSlide.content.categories.length === 0 && <p className="text-xs text-fg-subtle">No IOC hunts recorded this period.</p>}
+                      <ul className="space-y-2">
+                        {currentSlide.content.categories.slice(0, 8).map((c: any) => (
+                          <li key={c.name} className="grid grid-cols-[6rem_1fr_3.5rem] items-center gap-2 text-xs">
+                            <span className="truncate text-fg">{c.name}</span>
+                            <span className="h-2 overflow-hidden rounded-full bg-surface-3">
+                              <span className="block h-full rounded-full bg-accent" style={{ width: `${c.percent}%` }} />
+                            </span>
+                            <span className="text-right tabular-nums text-fg-muted">{c.percent}%</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="rounded-lg border border-border bg-canvas p-4">
+                      <div className="mb-3 text-xs font-semibold uppercase text-fg-muted">Escalations</div>
+                      {currentSlide.content.escalations.length === 0 ? (
+                        <p className="text-xs text-fg-subtle">No IOC hunts were escalated this period.</p>
+                      ) : (
+                        <ul className="space-y-2 text-xs">
+                          {currentSlide.content.escalations.slice(0, 6).map((e: any) => (
+                            <li key={e.escalation + e.title} className="flex items-start justify-between gap-3">
+                              <span className="text-fg">{e.title}</span>
+                              <span className="shrink-0 font-mono text-danger-text">{e.escalation}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -569,46 +654,6 @@ export const DeckGeneratorView: React.FC = () => {
         </div>
       )}
 
-      {/* PRINT-ONLY COMPLETE DECK VIEW (renders each slide sequentially when user prints to PDF) */}
-      <div className="hidden print:block space-y-12">
-        {deck?.slides.map((slide, idx) => (
-          <div key={slide.id} className="p-8 border-b-2 border-slate-400 min-h-[600px] flex flex-col justify-between page-break-after">
-            <div className="border-b border-slate-300 pb-2 mb-6">
-              <div className="text-xs font-mono text-slate-500 uppercase">{currentClient.name} · {periodLabel}</div>
-              <h2 className="text-2xl font-bold text-slate-900">{slide.title}</h2>
-              <p className="text-xs text-slate-600">{slide.subtitle}</p>
-            </div>
-            <div className="py-6 flex-1 text-slate-800 text-sm">
-              {slide.type === 'executive_summary' && (
-                <div className="space-y-4">
-                  <p className="leading-relaxed">{slide.content.summary}</p>
-                  <div className="font-bold text-xs uppercase text-slate-600">Key Takeaways:</div>
-                  <ul className="list-disc pl-5 space-y-1 text-xs">
-                    {slide.content.takeaways.map((t: string, i: number) => <li key={i}>{t}</li>)}
-                  </ul>
-                </div>
-              )}
-              {slide.type === 'kpi_performance' && (
-                <div className="grid grid-cols-4 gap-4 text-center border p-4">
-                  <div>Hypotheses: <strong>{slide.content.totalHunts}</strong></div>
-                  <div>Open follow-ups: <strong>{slide.content.followUps}</strong></div>
-                  <div>True Positives: <strong>{slide.content.tpCount}</strong></div>
-                  <div>Hit Rate: <strong>{slide.content.tpRate}</strong></div>
-                </div>
-              )}
-              {slide.type === 'strategic_roadmap' && (
-                <ol className="list-decimal pl-5 space-y-2 text-xs">
-                  {slide.content.roadmap.map((r: string, i: number) => <li key={i}>{r}</li>)}
-                </ol>
-              )}
-            </div>
-            <div className="text-[10px] font-mono text-slate-500 border-t pt-2 flex justify-between">
-              <span>Blindspot Threat Hunting Briefing</span>
-              <span>Slide {idx + 1} of {deck.slides.length}</span>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 };

@@ -1,4 +1,6 @@
-import { ClientOrg, NextHuntRecommendation, ThreatHuntReportDocument, TodayHunt } from '../types';
+import { ClientOrg, HuntReference, NextHuntRecommendation, ThreatHuntReportDocument, TodayHunt } from '../types';
+import { LEGACY_SOURCE, SOURCES } from '../lib/huntCatalog';
+import { apiFetch } from './auth';
 
 /**
  * AI endpoints may answer with curated fallback content when the model is unavailable.
@@ -14,7 +16,7 @@ export async function fetchNextHuntRecommendations(
   coveredTechniques: string[],
   uncoveredTechniques: string[]
 ): Promise<AiResult<NextHuntRecommendation[]>> {
-  const res = await fetch('/api/ai/recommend-next-hunts', {
+  const res = await apiFetch('/api/ai/recommend-next-hunts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ client, coveredTechniques, uncoveredTechniques }),
@@ -25,7 +27,7 @@ export async function fetchNextHuntRecommendations(
 }
 
 export async function fetchAiDailyHunts(client: ClientOrg): Promise<{ hunts: TodayHunt[]; fallback: boolean }> {
-  const res = await fetch('/api/ai/generate-daily-hunts', {
+  const res = await apiFetch('/api/ai/generate-daily-hunts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ client }),
@@ -34,6 +36,14 @@ export async function fetchAiDailyHunts(client: ClientOrg): Promise<{ hunts: Tod
   const data = await res.json();
   const hunts: TodayHunt[] = (data.hunts || []).map((h: any, idx: number) => ({
     ...h,
+    source: SOURCES.some((s) => s.id === h.source) ? h.source : (LEGACY_SOURCE[h.source] ?? 'Coverage Gap'),
+    platformQueries: h.platformQueries && typeof h.platformQueries === 'object' ? h.platformQueries : undefined,
+    // Links written by the model are unchecked: the UI labels them so hunters verify before trusting.
+    references: Array.isArray(h.references)
+      ? h.references
+          .filter((r: any) => typeof r?.url === 'string' && r.url.startsWith('https://'))
+          .map((r: any): HuntReference => ({ title: String(r.title || r.url), url: r.url, publisher: r.publisher, unverified: true }))
+      : undefined,
     id: `ai-gen-${Date.now()}-${idx}`,
     clientId: client.id,
     generatedAt: new Date().toISOString(),
@@ -57,7 +67,7 @@ export async function fetchDeckNarrative(
     nextQuarterRoadmap: string[];
   }>
 > {
-  const res = await fetch('/api/ai/generate-deck-narrative', {
+  const res = await apiFetch('/api/ai/generate-deck-narrative', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -81,7 +91,7 @@ export async function fetchSeverityRationale(
   compositeScore: number,
   level: string
 ): Promise<AiResult<string>> {
-  const res = await fetch('/api/ai/severity-rationalization', {
+  const res = await apiFetch('/api/ai/severity-rationalization', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ topic, summary, factors, compositeScore, level }),
@@ -115,7 +125,7 @@ export async function parseReportPdf(
   mimeType: string,
   fileName: string
 ): Promise<ExtractedHuntReportData> {
-  const res = await fetch('/api/ai/parse-report-pdf', {
+  const res = await apiFetch('/api/ai/parse-report-pdf', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ base64Data, mimeType, fileName }),
@@ -137,7 +147,7 @@ export async function generateThreatHuntReportDocument(payload: {
   client?: any;
   hunter?: any;
 }): Promise<AiResult<ThreatHuntReportDocument>> {
-  const res = await fetch('/api/ai/generate-thr-report', {
+  const res = await apiFetch('/api/ai/generate-thr-report', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

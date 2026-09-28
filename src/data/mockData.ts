@@ -33,9 +33,10 @@ export const INITIAL_USERS: User[] = [
 export const INITIAL_CLIENTS: ClientOrg[] = [
   {
     id: 'client-apex-health',
-    name: 'Apex Health System',
+    name: 'GSK',
     industry: 'healthcare',
-    description: 'Regional multi-hospital network with 14 clinical locations, PACS medical imaging, and EPIC EHR systems.',
+    logoSlug: 'gsk',
+    description: 'Demo profile: global healthcare and biopharma environment with clinical research sites, PACS lab imaging and EHR integrations.',
     primaryTelemetry: [
       'EDR - CrowdStrike Falcon',
       'Windows Event 4688 / Sysmon 1',
@@ -53,9 +54,10 @@ export const INITIAL_CLIENTS: ClientOrg[] = [
   },
   {
     id: 'client-vanguard-fin',
-    name: 'Vanguard Global Capital',
+    name: 'HSBC',
     industry: 'finance',
-    description: 'Tier-2 commercial bank and investment broker managing $18B in client assets and SWIFT wire operations.',
+    logoSlug: 'hsbc',
+    description: 'Demo profile: retail and commercial banking environment with SWIFT wire operations, trading desks and executive mailboxes.',
     primaryTelemetry: [
       'EDR - Microsoft Defender for Endpoint',
       'Windows Event 4624/4625 (Logon)',
@@ -73,9 +75,10 @@ export const INITIAL_CLIENTS: ClientOrg[] = [
   },
   {
     id: 'client-aegis-defense',
-    name: 'Aegis Defense Technologies',
+    name: 'Airbus',
     industry: 'defense',
-    description: 'DoD prime aerospace contractor engineering autonomous avionics and classified radar subsystems.',
+    logoSlug: 'airbus',
+    description: 'Demo profile: aerospace and defense engineering environment with avionics design repos, CAD/CAM workstations and ground stations.',
     primaryTelemetry: [
       'EDR - CrowdStrike Falcon',
       'Linux auditd / syslog',
@@ -93,9 +96,10 @@ export const INITIAL_CLIENTS: ClientOrg[] = [
   },
   {
     id: 'client-omni-retail',
-    name: 'Omni Retail & Commerce',
+    name: 'Target',
     industry: 'retail',
-    description: 'National retail chain with 450 brick-and-mortar storefronts, e-commerce storefront, and POS infrastructure.',
+    logoSlug: 'target',
+    description: 'Demo profile: national retail environment with in-store POS terminals, e-commerce storefront and loyalty APIs.',
     primaryTelemetry: [
       'EDR - SentinelOne',
       'Proxy / Web Gateway Logs',
@@ -112,9 +116,10 @@ export const INITIAL_CLIENTS: ClientOrg[] = [
   },
   {
     id: 'client-cloudnova-tech',
-    name: 'CloudNova SaaS Platform',
+    name: 'Atlassian',
     industry: 'technology',
-    description: 'Multi-tenant B2B analytics platform running on AWS EKS with 120,000 active microservices.',
+    logoSlug: 'atlassian',
+    description: 'Demo profile: multi-tenant SaaS environment running on AWS EKS with Kubernetes workloads and cloud data warehouses.',
     primaryTelemetry: [
       'CloudTrail / Cloud Audit Logs',
       'Linux auditd / syslog',
@@ -227,7 +232,7 @@ export const INITIAL_HUNT_REPORTS: HuntReport[] = [
     notes: 'Identified anomalous concurrent sessions for Senior Trader in Singapore and residential IP in California. Helpdesk received fake verification call 2 hours prior. Token revoked.',
     iocs: [
       { id: 'ioc-4', type: 'IP', value: '198.51.100.73', notes: 'Residential proxy node' },
-      { id: 'ioc-5', type: 'Account', value: 'd.chen@vanguardcapital.com', notes: 'Targeted executive trader' },
+      { id: 'ioc-5', type: 'Account', value: 'd.chen@client.example.com', notes: 'Targeted executive trader' },
     ],
     severityScore: {
       id: 'sev-104',
@@ -419,7 +424,7 @@ export const INITIAL_TODAYS_HUNTS: TodayHunt[] = [
   {
     id: 'th-2',
     clientId: 'client-apex-health',
-    source: 'Ransomware Campaign',
+    source: 'Ransomware',
     sourceReference: 'Qilin & RansomHub 2026 Healthcare Double-Extortion Surge (CISA Advisory AA26-088A)',
     priority: 'Critical',
     hypothesisName: '2026 Ransomware Inhibit Recovery: Volume Shadow Deletion via VSSAdmin & EDR Service Neutralization',
@@ -519,7 +524,7 @@ export const INITIAL_TODAYS_HUNTS: TodayHunt[] = [
   {
     id: 'th-5',
     clientId: 'client-omni-retail',
-    source: 'Threat Actor Intel',
+    source: 'Malware',
     sourceReference: '2026 Magecart & Akira Retail Supply Chain Infiltration Campaign',
     priority: 'High',
     hypothesisName: '2026 POS In-Memory Scrape: PowerShell DLL Reflection & Encrypted Webhook Exfiltration',
@@ -603,7 +608,7 @@ export const INITIAL_DETECTION_RULES: DetectionRule[] = [
 | where ProcessCommandLine matches regex @"MiniDump\\s+[0-9]+\\s+.*\\.dmp" or ProcessCommandLine has "lsass"
 | project TimeGenerated, DeviceName, AccountName, InitiatingProcessFileName, ProcessCommandLine, ReportId`,
     targetDataSources: ['EDR - CrowdStrike Falcon', 'Windows Event 4688 / Sysmon 1'],
-    targetEnvironment: 'Apex Azure Sentinel Prod (Workspace: ws-apex-health-secops-01)',
+    targetEnvironment: 'Azure Sentinel Prod (Workspace: ws-secops-01)',
     deployedBy: 'Sarah Lin',
     sentDate: '2026-09-18T14:30:00Z',
     approvedDate: '2026-09-19T09:15:00Z',
@@ -611,8 +616,8 @@ export const INITIAL_DETECTION_RULES: DetectionRule[] = [
     totalAlertsTriggered: 4,
     falsePositiveRatePct: 0.2,
     tuningNotes: 'Whitelisted certified backup script backup-sql-dump.ps1 running from System32 with strict hash validation.',
-    clientApprover: 'Dr. Gregory House (CISO, Apex Health)',
-    runbookUrl: 'https://wiki.apexhealth.org/secops/runbooks/RB-CRED-003',
+    clientApprover: 'Dr. Gregory House (CISO, client)',
+    runbookUrl: 'https://wiki.example.org/secops/runbooks/RB-CRED-003',
   },
   {
     id: 'det-rule-002',
@@ -640,8 +645,8 @@ export const INITIAL_DETECTION_RULES: DetectionRule[] = [
     totalAlertsTriggered: 1,
     falsePositiveRatePct: 0.0,
     tuningNotes: 'Zero benign tools should execute shadow copy deletion in clinical environment without automated IT change window tag.',
-    clientApprover: 'Rachel Greene (Lead SOC Analyst, Apex Health)',
-    runbookUrl: 'https://wiki.apexhealth.org/secops/runbooks/RB-RANSOM-001',
+    clientApprover: 'Rachel Greene (Lead SOC Analyst, client)',
+    runbookUrl: 'https://wiki.example.org/secops/runbooks/RB-RANSOM-001',
   },
   {
     id: 'det-rule-003',
@@ -669,7 +674,7 @@ detection:
         c-ip|cidr: '10.0.0.0/8'
     condition: selection and not filter_trusted_subnet`,
     targetDataSources: ['WAF Telemetry', 'Firewall / NetFlow Telemetry'],
-    targetEnvironment: 'Apex Staging Splunk Cluster (Cluster-Staging-02)',
+    targetEnvironment: 'Staging Splunk Cluster (Cluster-Staging-02)',
     deployedBy: 'Elena Rostova',
     sentDate: '2026-09-23T16:20:00Z',
     totalAlertsTriggered: 12,
@@ -695,7 +700,7 @@ detection:
 | lookup corporate_assets ip as ClientIPAddress OUTPUT asset_tier, hostname
 | where asset_tier != "DomainController"`,
     targetDataSources: ['Windows Event 4688 / Sysmon 1', 'Active Directory Event 4720/4738'],
-    targetEnvironment: 'Vanguard Splunk Enterprise Security (Cluster: US-East-Banking-ES)',
+    targetEnvironment: 'Splunk Enterprise Security (Cluster: US-East-Banking-ES)',
     deployedBy: 'Sarah Lin',
     sentDate: '2026-09-15T10:00:00Z',
     approvedDate: '2026-09-16T14:00:00Z',
@@ -703,7 +708,7 @@ detection:
     totalAlertsTriggered: 6,
     falsePositiveRatePct: 2.1,
     tuningNotes: 'Configured exclusion for weekly IT Asset Discovery agent vulnerability scan service account.',
-    clientApprover: 'David Sterling (Head of Cyber Defense, Vanguard)',
+    clientApprover: 'David Sterling (Head of Cyber Defense, client)',
   },
   {
     id: 'det-rule-005',
@@ -722,15 +727,15 @@ detection:
 | where eventcount > 3
 | table _time, actor.alternateId, client.ipAddress, client.geographicalContext.country, target.displayName`,
     targetDataSources: ['Identity Broker Logs (Okta, Entra)'],
-    targetEnvironment: 'Vanguard Okta + Splunk ES Pipeline',
+    targetEnvironment: 'Okta + Splunk ES Pipeline',
     deployedBy: 'Marcus Vance',
     sentDate: '2026-09-20T17:00:00Z',
     approvedDate: '2026-09-21T08:30:00Z',
     lastTriggeredDate: '2026-09-25T01:14:00Z',
     totalAlertsTriggered: 2,
     falsePositiveRatePct: 0.0,
-    tuningNotes: 'High-fidelity signature. Sends instant PagerDuty webhook to Vanguard Incident Response team.',
-    clientApprover: 'Sarah Jenkins (SecOps Director, Vanguard)',
+    tuningNotes: 'High-fidelity signature. Sends instant PagerDuty webhook to the client Incident Response team.',
+    clientApprover: 'Sarah Jenkins (SecOps Director, client)',
   },
   {
     id: 'det-rule-006',
@@ -751,7 +756,7 @@ detection:
 | where unique_subdomains > 35 AND avg_len > 38
 | table id.orig_h, domain, unique_subdomains, avg_len, count`,
     targetDataSources: ['DNS Query Logs', 'Zeek / Suricata Network NIDS'],
-    targetEnvironment: 'Aegis Classified Enclave SIEM (Air-Gapped Splunk ES)',
+    targetEnvironment: 'Classified Enclave SIEM (Air-Gapped Splunk ES)',
     deployedBy: 'Elena Rostova',
     sentDate: '2026-09-22T09:00:00Z',
     approvedDate: '2026-09-22T13:30:00Z',
@@ -759,7 +764,7 @@ detection:
     totalAlertsTriggered: 1,
     falsePositiveRatePct: 0.0,
     tuningNotes: 'Whitelisted authorized CDN domain validation endpoints (e.g. *.akadns.net).',
-    clientApprover: 'Cmdr. Thomas Vance (Cyber Ops Lead, Aegis)',
+    clientApprover: 'Cmdr. Thomas Vance (Cyber Ops Lead, client)',
   }
 ];
 

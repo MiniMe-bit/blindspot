@@ -26,6 +26,20 @@ GEMINI_MODEL=gemini-3.8-flash   # optional override
 Without a key the app still works. AI-backed actions tell the user when they fall back to curated or
 template content, and document import is disabled rather than guessed.
 
+## Hunter accounts
+
+Every hunter signs in with a username and password. On first start the server creates accounts for the
+demo hunters (`sarah.lin`, `marcus.vance`, `elena.rostova`) with random passwords, written once to
+`data/initial-credentials.txt`. Hand those out, then delete the file. `data/` is git-ignored and holds
+only scrypt password hashes.
+
+```bash
+npm run user:add -- jane.doe "Jane Doe" analyst jane@example.com   # create, or reset a password
+```
+
+Set `SESSION_SECRET` in `.env` (the server reads `.env`) so sessions survive a server restart. Sessions last 12 hours, and
+5 failed sign-ins lock that username for 15 minutes from the same IP.
+
 ## Structure
 
 ```

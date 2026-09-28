@@ -7,11 +7,18 @@ import { useEffect, useState } from 'react';
 const STORAGE_VERSION = 'v2';
 const key = (name: string) => `blindspot.${STORAGE_VERSION}.${name}`;
 
-export function usePersistentState<T>(name: string, initial: T | (() => T)) {
+/**
+ * `migrate` upgrades a previously saved value in place (e.g. to backfill new fields) without
+ * bumping STORAGE_VERSION, so hunters keep their own reports and edits.
+ */
+export function usePersistentState<T>(name: string, initial: T | (() => T), migrate?: (saved: T) => T) {
   const [value, setValue] = useState<T>(() => {
     try {
       const raw = localStorage.getItem(key(name));
-      if (raw !== null) return JSON.parse(raw) as T;
+      if (raw !== null) {
+        const saved = JSON.parse(raw) as T;
+        return migrate ? migrate(saved) : saved;
+      }
     } catch {
       // Corrupt or unavailable storage: fall back to the seed.
     }

@@ -5,8 +5,9 @@ import { useApp } from '../../app/AppContext';
 import { ALL_DATA_SOURCES, MITRE_TECHNIQUES } from '../../data/mitreAttck';
 import { parseReportPdf } from '../../services/api';
 import { currentWeekRange } from '../../lib/coverage';
+import { HUNTS_PER_PHASE, phaseCounts, phaseOptions, suggestPhase } from '../../lib/phases';
 import { cn } from '../../lib/cn';
-import { Badge, Button, Card, Field, Input, Select, Textarea, useToast } from '../ui';
+import { Badge, Button, Card, CardTitle, Field, Input, Select, Textarea, useToast } from '../ui';
 
 const OUTCOMES: Array<{ value: HuntOutcome; help: string }> = [
   { value: 'True Positive', help: 'Malicious activity confirmed' },
@@ -25,7 +26,9 @@ interface ReportFormProps {
 }
 
 export const ReportForm: React.FC<ReportFormProps> = ({ draft, onCancel, onSaved }) => {
-  const { currentClient, currentUser, addReport } = useApp();
+  const { currentClient, currentUser, addReport, clientReports } = useApp();
+  const [phase, setPhase] = useState(() => suggestPhase(clientReports));
+  const counts = phaseCounts(clientReports);
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -116,9 +119,10 @@ export const ReportForm: React.FC<ReportFormProps> = ({ draft, onCancel, onSaved
       notes: notes.trim(),
       iocs,
       createdAt: new Date().toISOString(),
+      phase,
     };
     addReport(report);
-    toast('Hunt report saved.');
+    toast('Hypothesis record saved.');
     onSaved(report);
   };
 
@@ -129,9 +133,9 @@ export const ReportForm: React.FC<ReportFormProps> = ({ draft, onCancel, onSaved
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <button type="button" onClick={onCancel} className="mb-2 inline-flex items-center gap-1 text-[13px] text-fg-muted hover:text-fg">
-            <ArrowLeft className="size-3.5" /> Hunt reports
+            <ArrowLeft className="size-3.5" /> Hypothesis Record
           </button>
-          <h1 className="text-xl font-semibold tracking-tight text-fg">New hunt report</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-fg">New hypothesis record</h1>
           <p className="mt-1 text-sm text-fg-muted">
             {currentClient.name} · {currentUser.name}
           </p>
@@ -153,7 +157,16 @@ export const ReportForm: React.FC<ReportFormProps> = ({ draft, onCancel, onSaved
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <Card padded className="space-y-5">
-            <h2 className="text-sm font-semibold text-fg">Hypothesis</h2>
+            <CardTitle tone="accent">Hypothesis</CardTitle>
+            <Field label="Phase" htmlFor="rf-phase" required hint={`Each phase holds ${HUNTS_PER_PHASE} hunts. Phase ${phase} has ${counts.get(phase) ?? 0} of ${HUNTS_PER_PHASE} so far.`}>
+              <Select id="rf-phase" value={phase} onChange={(e) => setPhase(Number(e.target.value))} className="sm:w-60">
+                {phaseOptions(clientReports).map((p) => (
+                  <option key={p} value={p}>
+                    Phase {p} ({counts.get(p) ?? 0}/{HUNTS_PER_PHASE}){(counts.get(p) ?? 0) >= HUNTS_PER_PHASE ? ' — full' : ''}
+                  </option>
+                ))}
+              </Select>
+            </Field>
             <Field label="Title" htmlFor="rf-title" required>
               <Input id="rf-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. LSASS memory access via comsvcs.dll MiniDump" />
               {err('title')}
@@ -196,7 +209,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ draft, onCancel, onSaved
           </Card>
 
           <Card padded className="space-y-5">
-            <h2 className="text-sm font-semibold text-fg">Query</h2>
+            <CardTitle tone="teal">Query</CardTitle>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
               <Field label="Language" htmlFor="rf-lang">
                 <Select id="rf-lang" value={language} onChange={(e) => setLanguage(e.target.value as HuntReport['queryLanguage'])}>
@@ -223,7 +236,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ draft, onCancel, onSaved
           </Card>
 
           <Card padded className="space-y-5">
-            <h2 className="text-sm font-semibold text-fg">Findings</h2>
+            <CardTitle tone="danger">Findings</CardTitle>
             <Field label="Outcome" required>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {OUTCOMES.map((o) => (
@@ -314,7 +327,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ draft, onCancel, onSaved
             {submitted && hasErrors && <p className="text-xs text-danger-text">Fix the highlighted fields to save.</p>}
             <div className="flex flex-col gap-2">
               <Button type="submit" variant="primary">
-                Save report
+                Save record
               </Button>
               <Button variant="ghost" onClick={onCancel}>
                 Cancel

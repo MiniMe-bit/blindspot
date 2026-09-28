@@ -115,7 +115,7 @@ export const DetectionsView: React.FC = () => {
             icon={ShieldCheck}
             title={clientRules.length ? 'No rules match' : 'No detection rules yet'}
             description={
-              clientRules.length ? 'Try a different filter.' : 'Promote a hunt report from Hunt reports, or add a rule manually.'
+              clientRules.length ? 'Try a different filter.' : 'Promote a record from Hypothesis Record, or add a rule manually.'
             }
             action={
               !clientRules.length && (

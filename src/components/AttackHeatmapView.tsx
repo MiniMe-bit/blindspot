@@ -5,7 +5,7 @@ import { useApp } from '../app/AppContext';
 import { MITRE_TECHNIQUES } from '../data/mitreAttck';
 import { coveredTechniqueSet, coverageSummary, hasTelemetry, isCovered, tacticCoverage } from '../lib/coverage';
 import { cn } from '../lib/cn';
-import { Badge, Button, Card, CodeBlock, EmptyState, Meter, PageHeader, SectionLabel, Segmented, Stat } from './ui';
+import { Badge, Button, Card, CardTitle, CodeBlock, EmptyState, Meter, PageHeader, SectionLabel, Segmented, Stat } from './ui';
 
 interface PrescribedHunt {
   id: string;
@@ -139,7 +139,7 @@ const PRESCRIBED_TACTIC_HUNTS: Record<string, PrescribedHunt[]> = {
 | where ProcessCommandLine has_any ("SharpHound", "BloodHound", "invoke-bloodhound", "adfind", "nltest", "net group \"domain admins\" /domain")
      or (InitiatingProcessFileName in~ ("powershell.exe", "cmd.exe") and ProcessCommandLine has_all ("LDAP://", "samAccountType", "adminCount=1"))
 | project TimeGenerated, DeviceName, AccountName, InitiatingProcessFileName, ProcessCommandLine`,
-      expectedPattern: 'cmd.exe executing AdFind.exe -f "(objectcategory=person)" -b dc=apex,dc=local',
+      expectedPattern: 'cmd.exe executing AdFind.exe -f "(objectcategory=person)" -b dc=corp,dc=local',
     },
     {
       id: 'hunt-dsc-2',
@@ -224,7 +224,7 @@ const PRESCRIBED_TACTIC_HUNTS: Record<string, PrescribedHunt[]> = {
 | where ProcessCommandLine has_any ("New-MailboxExportRequest", "Get-Mailbox", "Search-Mailbox")
 | where ProcessCommandLine has "-FilePath" and ProcessCommandLine has ".pst"
 | project TimeGenerated, DeviceName, AccountName, InitiatingProcessFileName, ProcessCommandLine`,
-      expectedPattern: 'powershell.exe -c "New-MailboxExportRequest -Mailbox ceo@apexhealth.org -FilePath \\\\backup\\psts\\ceo.pst"',
+      expectedPattern: 'powershell.exe -c "New-MailboxExportRequest -Mailbox ceo@client.example.com -FilePath \\\\backup\\psts\\ceo.pst"',
     },
   ],
   'Privilege Escalation': [
@@ -453,13 +453,13 @@ export const AttackHeatmapView: React.FC = () => {
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Techniques hunted" value={`${summary.covered} / ${summary.total}`} detail={`${summary.percent}% of the catalog`} />
         <Stat label="Tactics with no hunts" value={tacticsWithGaps} detail={`of ${tactics.length} tactics`} onClick={() => setFilter('gaps')} />
-        <Stat label="Hunt reports" value={clientReports.length} detail="Source of coverage data" />
+        <Stat label="Hypothesis records" value={clientReports.length} detail="Source of coverage data" />
         <Stat label="Techniques not hunted" value={summary.gaps} onClick={() => openMatrix()} />
       </div>
 
       <Card className="mb-6">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3">
-          <h2 className="text-sm font-semibold text-fg">Tactics</h2>
+          <CardTitle tone="violet">Tactics</CardTitle>
           <Segmented<TacticFilter>
             ariaLabel="Filter tactics"
             value={filter}
@@ -548,7 +548,7 @@ export const AttackHeatmapView: React.FC = () => {
         {/* Ready-made hunts */}
         <div className="space-y-4 lg:col-span-8">
           <div>
-            <h2 className="text-sm font-semibold text-fg">Ready-made hunts for {selected.name}</h2>
+            <CardTitle tone="teal">Ready-made hunts for {selected.name}</CardTitle>
             <p className="mt-0.5 text-[13px] text-fg-muted">
               Starting-point queries (KQL). Validate field names against the client's schema before running.
             </p>

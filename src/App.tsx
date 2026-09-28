@@ -3,18 +3,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import type { MitreTechnique, ReportDraft, RuleDraft } from './types';
-import { useWorkspace } from './app/useWorkspace';
+import { clearClientSelection, useWorkspace, type SessionUser } from './app/useWorkspace';
 import { AppContext, type AppContextValue } from './app/AppContext';
-import { ROUTES, type RouteId } from './app/routes';
+import { CROSS_CLIENT_ROUTES, ROUTES, type RouteId } from './app/routes';
 import { useHashRoute } from './lib/useHashRoute';
 import { draftFromTechnique } from './lib/drafts';
 import { ToastProvider, useToast } from './components/ui';
 import { NavRail } from './components/layout/NavRail';
 import { TopBar } from './components/layout/TopBar';
+import { fetchSession, logout, UNAUTHORIZED_EVENT } from './services/auth';
+import { LoginView } from './components/LoginView';
+import { ClientsView } from './components/ClientsView';
 import { OverviewView } from './components/OverviewView';
 import { TodaysHuntsView } from './components/TodaysHuntsView';
+import { IocHuntingView } from './components/IocHuntingView';
 import { ThreatIntelView } from './components/ThreatIntelView';
 import { ReportsView } from './components/ReportsView';
 import { DetectionsView } from './components/DetectionsView';
@@ -26,8 +31,10 @@ import { ClientManagementModal } from './components/ClientManagementModal';
 import { CreateTHRModal } from './components/CreateTHRModal';
 
 const PAGES: Record<RouteId, React.FC> = {
+  clients: ClientsView,
   overview: OverviewView,
   hunts: TodaysHuntsView,
+  ioc: IocHuntingView,
   intel: ThreatIntelView,
   reports: ReportsView,
   detections: DetectionsView,
@@ -38,8 +45,8 @@ const PAGES: Record<RouteId, React.FC> = {
 
 const SIDEBAR_KEY = 'blindspot.ui.sidebarCollapsed';
 
-function Shell() {
-  const ws = useWorkspace();
+function Shell({ user, onSignOut }: { user: SessionUser; onSignOut: () => void }) {
+  const ws = useWorkspace(user);
   const toast = useToast();
   const [route, navigate] = useHashRoute();
 
@@ -107,7 +114,13 @@ function Shell() {
     [ws, navigate, startReport, peekReportDraft, clearReportDraft, sendToDetections],
   );
 
-  const Page = PAGES[route];
+  // Client pages stay closed until the hunter picks a client on the client list.
+  const blocked = !ws.clientSelected && !CROSS_CLIENT_ROUTES.includes(route);
+  useEffect(() => {
+    if (blocked) navigate('clients');
+  }, [blocked, navigate]);
+
+  const Page = blocked ? ClientsView : PAGES[route];
 
   return (
     <AppContext.Provider value={ctx}>
@@ -115,6 +128,7 @@ function Shell() {
         <NavRail
           current={route}
           onNavigate={navigate}
+          client={ws.clientSelected ? ws.currentClient : null}
           collapsed={collapsed}
           onToggleCollapsed={toggleCollapsed}
           mobileOpen={mobileNavOpen}
@@ -124,15 +138,15 @@ function Shell() {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar
-            route={route}
+            route={blocked ? 'clients' : route}
             onOpenMobileNav={() => setMobileNavOpen(true)}
             clients={ws.clients}
             currentClient={ws.currentClient}
             onSelectClient={ws.setCurrentClientId}
+            onAllClients={() => navigate('clients')}
             onManageClients={() => setClientsOpen(true)}
-            users={ws.users}
             currentUser={ws.currentUser}
-            onSelectUser={ws.setCurrentUserId}
+            onSignOut={onSignOut}
             onResetDemoData={ws.resetDemoData}
           />
 
@@ -151,9 +165,10 @@ function Shell() {
           onClose={() => setThrOpen(false)}
           currentClient={ws.currentClient}
           currentUser={ws.currentUser}
+          reports={ws.clientReports}
           onSaveReport={(r) => {
             ws.addReport(r);
-            toast('Threat hunt report saved to Hunt reports.');
+            toast('Threat hunt report saved to Hypothesis Record.');
           }}
         />
       )}
@@ -188,10 +203,53 @@ function Shell() {
   );
 }
 
+type AuthState = { status: 'loading' } | { status: 'signed-out'; notice?: string } | { status: 'signed-in'; user: SessionUser };
+
 export default function App() {
+  const [auth, setAuth] = useState<AuthState>({ status: 'loading' });
+
+  useEffect(() => {
+    fetchSession()
+      .then((user) => setAuth(user ? { status: 'signed-in', user } : { status: 'signed-out' }))
+      .catch(() => setAuth({ status: 'signed-out', notice: 'Cannot reach the Blindspot server.' }));
+
+    const onUnauthorized = () => setAuth({ status: 'signed-out', notice: 'Your session expired. Sign in again to continue.' });
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+  }, []);
+
+  const signOut = useCallback(async () => {
+    await logout();
+    clearClientSelection();
+    setAuth({ status: 'signed-out' });
+  }, []);
+
+  if (auth.status === 'loading') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-canvas text-fg-subtle" aria-busy="true">
+        <Loader2 className="size-5 animate-spin" />
+      </div>
+    );
+  }
+
+  if (auth.status === 'signed-out') {
+    return (
+      <LoginView
+        notice={auth.notice}
+        onSignedIn={(user) => {
+          // Always start from the client list after signing in, with no client picked yet.
+          clearClientSelection();
+          window.location.hash = ROUTES.clients.path;
+          setAuth({ status: 'signed-in', user });
+        }}
+      />
+    );
+  }
+
   return (
     <ToastProvider>
-      <Shell />
+      {/* key: a different hunter gets a fresh shell */}
+      <Shell key={auth.user.id} user={auth.user} onSignOut={signOut} />
     </ToastProvider>
   );
 }

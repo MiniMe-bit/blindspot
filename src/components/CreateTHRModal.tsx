@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ClientOrg, User, HuntOutcome, ThreatHuntQueryItem, ThreatHuntReportDocument, HuntReport } from '../types';
+import { HUNTS_PER_PHASE, phaseCounts, phaseOptions, suggestPhase } from '../lib/phases';
 import { MITRE_TECHNIQUES } from '../data/mitreAttck';
 import { generateThreatHuntReportDocument } from '../services/api';
 import { downloadThreatHuntDoc, printThreatHuntPdf } from '../utils/thrExporter';
@@ -29,6 +30,8 @@ interface CreateTHRModalProps {
   currentClient: ClientOrg;
   currentUser: User;
   onSaveReport: (report: HuntReport) => void;
+  /** This client's existing records, used to suggest the hunt phase. */
+  reports: HuntReport[];
 }
 
 export const CreateTHRModal: React.FC<CreateTHRModalProps> = ({
@@ -37,7 +40,10 @@ export const CreateTHRModal: React.FC<CreateTHRModalProps> = ({
   currentClient,
   currentUser,
   onSaveReport,
+  reports,
 }) => {
+  const [phase, setPhase] = useState(() => suggestPhase(reports));
+  const counts = phaseCounts(reports);
   // Step 1 Form States
   const todayStr = new Date().toISOString().split('T')[0];
   const [reportDate, setReportDate] = useState<string>(todayStr);
@@ -249,6 +255,7 @@ export const CreateTHRModal: React.FC<CreateTHRModalProps> = ({
       isTHR: true,
       reportDate: thrDocument.reportDate || reportDate,
       thrDocument: thrDocument,
+      phase,
     };
 
     onSaveReport(newReport);
@@ -386,8 +393,25 @@ export const CreateTHRModal: React.FC<CreateTHRModalProps> = ({
                 </div>
               </div>
 
-              {/* Row 1: Date, Outcome, Client */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Row 1: Phase, Date, Outcome, Client */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div>
+                  <label htmlFor="thr-phase" className="block text-slate-300 font-semibold mb-1">
+                    Phase *
+                  </label>
+                  <select
+                    id="thr-phase"
+                    value={phase}
+                    onChange={(e) => setPhase(Number(e.target.value))}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 text-xs focus:outline-none focus:border-cyan-500"
+                  >
+                    {phaseOptions(reports).map((p) => (
+                      <option key={p} value={p}>
+                        Phase {p} ({counts.get(p) ?? 0}/{HUNTS_PER_PHASE})
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-cyan-400" />

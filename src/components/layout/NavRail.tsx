@@ -1,11 +1,16 @@
 import React from 'react';
-import { PanelLeftClose, PanelLeftOpen, Building2, X } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, Building2, X, Lock } from 'lucide-react';
+import type { ClientOrg } from '../../types';
 import { NAV_SECTIONS, ROUTES, type RouteId } from '../../app/routes';
 import { cn } from '../../lib/cn';
+import { BrandLogo, BrandMark } from '../ui/BrandLogo';
+import { ClientLogo } from '../ui/ClientLogo';
 
 interface NavRailProps {
   current: RouteId;
   onNavigate: (id: RouteId) => void;
+  /** The client being worked on, or null before one is picked (client pages are hidden until then). */
+  client: ClientOrg | null;
   collapsed: boolean;
   onToggleCollapsed: () => void;
   mobileOpen: boolean;
@@ -13,25 +18,35 @@ interface NavRailProps {
   onOpenClients: () => void;
 }
 
-export const LogoMark: React.FC<{ className?: string }> = ({ className }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-    <path d="M12 12 L12 3 A9 9 0 0 1 20.2 8.2 Z" fill="currentColor" />
-  </svg>
-);
-
-export const NavRail: React.FC<NavRailProps> = ({
-  current,
-  onNavigate,
-  collapsed,
-  onToggleCollapsed,
-  mobileOpen,
-  onCloseMobile,
-  onOpenClients,
-}) => {
+export const NavRail: React.FC<NavRailProps> = ({ current, onNavigate, client, collapsed, onToggleCollapsed, mobileOpen, onCloseMobile, onOpenClients }) => {
   const go = (id: RouteId) => {
     onNavigate(id);
     onCloseMobile();
+  };
+
+  const navLink = (id: RouteId, compact: boolean) => {
+    const route = ROUTES[id];
+    const Icon = route.icon;
+    const active = current === id;
+    return (
+      <a
+        href={`#${route.path}`}
+        onClick={(e) => {
+          e.preventDefault();
+          go(id);
+        }}
+        aria-current={active ? 'page' : undefined}
+        title={compact ? route.label : undefined}
+        className={cn(
+          'group flex items-center gap-2.5 rounded-md text-sm transition-colors',
+          compact ? 'h-9 justify-center' : 'h-9 px-2.5',
+          active ? 'bg-surface-3 font-medium text-fg' : 'text-fg-muted hover:bg-surface-2 hover:text-fg',
+        )}
+      >
+        <Icon className={cn('size-4 shrink-0', active ? 'text-accent' : 'text-fg-subtle group-hover:text-fg-muted')} />
+        {!compact && <span className="truncate">{route.label}</span>}
+      </a>
+    );
   };
 
   const content = (isMobile: boolean) => {
@@ -39,10 +54,9 @@ export const NavRail: React.FC<NavRailProps> = ({
     return (
       <div className="flex h-full flex-col">
         {/* Brand */}
-        <div className={cn('flex h-14 shrink-0 items-center border-b border-border', compact ? 'justify-center px-2' : 'justify-between px-4')}>
-          <button type="button" onClick={() => go('overview')} className="flex items-center gap-2.5 text-fg" title="Blindspot">
-            <LogoMark className="size-5 text-accent" />
-            {!compact && <span className="text-[15px] font-semibold tracking-tight">Blindspot</span>}
+        <div className={cn('flex h-16 shrink-0 items-center border-b border-border', compact ? 'justify-center px-2' : 'justify-between px-4')}>
+          <button type="button" onClick={() => go('clients')} className="flex items-center" title="Blindspot — all clients">
+            {compact ? <BrandMark className="size-9" /> : <BrandLogo size="md" />}
           </button>
           {isMobile && (
             <button type="button" onClick={onCloseMobile} className="rounded-md p-1.5 text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Close navigation">
@@ -51,44 +65,53 @@ export const NavRail: React.FC<NavRailProps> = ({
           )}
         </div>
 
-        {/* Sections */}
         <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Primary">
-          {NAV_SECTIONS.map((section, i) => (
-            <div key={section.label ?? i} className={cn(i > 0 && 'mt-5')}>
-              {section.label && !compact && (
-                <div className="mb-1 px-2.5 text-xs font-medium text-fg-subtle">{section.label}</div>
+          <ul>
+            <li>{navLink('clients', compact)}</li>
+          </ul>
+
+          {client ? (
+            <>
+              {/* Current client */}
+              {compact ? (
+                <button type="button" onClick={() => go('overview')} title={client.name} className="mx-auto mt-3 flex justify-center">
+                  <ClientLogo client={client} size="sm" />
+                </button>
+              ) : (
+                <div className="mt-3 flex items-center gap-2.5 rounded-lg border border-border bg-canvas px-2.5 py-2">
+                  <ClientLogo client={client} size="md" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-fg-subtle">Client</div>
+                    <div className="truncate text-sm font-semibold text-fg">{client.name}</div>
+                  </div>
+                  <button type="button" onClick={() => go('clients')} className="rounded px-1.5 py-0.5 text-xs text-accent-text hover:bg-surface-2">
+                    Change
+                  </button>
+                </div>
               )}
-              {section.label && compact && <div className="mx-auto mb-2 w-6 border-t border-border" />}
-              <ul className="space-y-0.5">
-                {section.items.map((id) => {
-                  const route = ROUTES[id];
-                  const Icon = route.icon;
-                  const active = current === id;
-                  return (
-                    <li key={id}>
-                      <a
-                        href={`#${route.path}`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          go(id);
-                        }}
-                        aria-current={active ? 'page' : undefined}
-                        title={compact ? route.label : undefined}
-                        className={cn(
-                          'group flex items-center gap-2.5 rounded-md text-sm transition-colors',
-                          compact ? 'h-9 justify-center' : 'h-8 px-2.5',
-                          active ? 'bg-surface-3 font-medium text-fg' : 'text-fg-muted hover:bg-surface-2 hover:text-fg',
-                        )}
-                      >
-                        <Icon className={cn('size-4 shrink-0', active ? 'text-accent' : 'text-fg-subtle group-hover:text-fg-muted')} />
-                        {!compact && <span className="truncate">{route.label}</span>}
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
+
+              {NAV_SECTIONS.map((section, i) => (
+                <div key={section.label ?? i} className="mt-4">
+                  {section.label && !compact && <div className="mb-1 px-2.5 text-xs font-medium text-fg-subtle">{section.label}</div>}
+                  {section.label && compact && <div className="mx-auto mb-2 w-6 border-t border-border" />}
+                  <ul className="space-y-0.5">
+                    {section.items.map((id) => (
+                      <li key={id}>{navLink(id, compact)}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </>
+          ) : (
+            !compact && (
+              <div className="mt-4 rounded-lg border border-dashed border-border px-3 py-3 text-[13px] text-fg-muted">
+                <div className="mb-1 flex items-center gap-1.5 font-medium text-fg">
+                  <Lock className="size-3.5 text-fg-subtle" /> Pick a client first
+                </div>
+                Hunts, IOC hunting, reports and coverage open once you choose a client.
+              </div>
+            )
+          )}
         </nav>
 
         {/* Footer */}
@@ -133,7 +156,7 @@ export const NavRail: React.FC<NavRailProps> = ({
       <aside
         className={cn(
           'no-print sticky top-0 hidden h-screen shrink-0 border-r border-border bg-surface transition-[width] duration-150 lg:block',
-          collapsed ? 'w-16' : 'w-60',
+          collapsed ? 'w-16' : 'w-64',
         )}
       >
         {content(false)}
@@ -143,7 +166,7 @@ export const NavRail: React.FC<NavRailProps> = ({
       {mobileOpen && (
         <div className="no-print fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/60" onClick={onCloseMobile} aria-hidden="true" />
-          <aside className="absolute inset-y-0 left-0 w-64 border-r border-border bg-surface shadow-2xl">{content(true)}</aside>
+          <aside className="absolute inset-y-0 left-0 w-72 border-r border-border bg-surface shadow-2xl">{content(true)}</aside>
         </div>
       )}
     </>

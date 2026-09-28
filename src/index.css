@@ -40,6 +40,17 @@
   --color-danger-soft: rgb(229 100 92 / 0.12);
   --color-danger-text: #f0978f;
 
+  /* Categorical: used for stat numbers and hunt source categories, never for status */
+  --color-violet: #9b7cf0;
+  --color-violet-soft: rgb(155 124 240 / 0.14);
+  --color-violet-text: #bfa9f7;
+  --color-teal: #34b8b0;
+  --color-teal-soft: rgb(52 184 176 / 0.14);
+  --color-teal-text: #7dd6cf;
+  --color-pink: #e0689f;
+  --color-pink-soft: rgb(224 104 159 / 0.14);
+  --color-pink-text: #efa0c3;
+
   /*
    * TRANSITIONAL: remap legacy palette classes still used by pages that have not
    * been migrated to the token system yet (CreateTHRModal, MitreMatrixModal,
@@ -132,5 +143,35 @@
   }
   .print-only {
     display: block !important;
+  }
+}
+
+/* Brand: animated radar mark and gradient wordmark */
+.bs-gradient-text {
+  background: linear-gradient(95deg, var(--color-accent-text) 0%, var(--color-teal-text) 45%, var(--color-violet-text) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.bs-sweep {
+  animation: bs-spin 3.2s linear infinite;
+}
+.bs-blip {
+  animation: bs-blip 3.2s ease-in-out infinite;
+}
+@keyframes bs-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes bs-blip {
+  0%, 11% { opacity: 0.15; }
+  14% { opacity: 1; }
+  60%, 100% { opacity: 0.15; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bs-sweep,
+  .bs-blip {
+    animation: none;
   }
 }

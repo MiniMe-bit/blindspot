@@ -4,6 +4,7 @@ import type { HuntOutcome, ReportDraft } from '../types';
 import { useApp } from '../app/AppContext';
 import { hashParams } from '../lib/useHashRoute';
 import { formatDate } from '../lib/coverage';
+import { HUNTS_PER_PHASE, phaseCounts } from '../lib/phases';
 import { cn } from '../lib/cn';
 import { Badge, Button, Card, EmptyState, Input, PageHeader, Select, outcomeTone, severityTone } from './ui';
 import { ReportForm } from './reports/ReportForm';
@@ -20,6 +21,10 @@ export const ReportsView: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(() => hashParams().get('id'));
   const [search, setSearch] = useState('');
   const [outcome, setOutcome] = useState<'all' | HuntOutcome>('all');
+  const [phase, setPhase] = useState<'all' | 'none' | number>('all');
+  const counts = useMemo(() => phaseCounts(clientReports), [clientReports]);
+  const phases = [...counts.keys()].sort((a, b) => a - b);
+  const unphased = clientReports.filter((r) => !r.phase).length;
   const [suggestOpen, setSuggestOpen] = useState(false);
   // Remounts the form when a new draft arrives while it is already open.
   const [draftVersion, setDraftVersion] = useState(0);
@@ -51,6 +56,7 @@ export const ReportsView: React.FC = () => {
     const q = search.trim().toLowerCase();
     return clientReports
       .filter((r) => outcome === 'all' || r.outcome === outcome)
+      .filter((r) => phase === 'all' || (phase === 'none' ? !r.phase : r.phase === phase))
       .filter(
         (r) =>
           !q ||
@@ -60,7 +66,7 @@ export const ReportsView: React.FC = () => {
             .includes(q),
       )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [clientReports, search, outcome]);
+  }, [clientReports, search, outcome, phase]);
 
   const selected = reports.find((r) => r.id === selectedId) ?? reports[0];
 
@@ -82,7 +88,7 @@ export const ReportsView: React.FC = () => {
   return (
     <>
       <PageHeader
-        title="Hunt reports"
+        title="Hypothesis Record"
         description={`Searchable record of every hunt run for ${currentClient.name}.`}
         actions={
           <>
@@ -93,11 +99,60 @@ export const ReportsView: React.FC = () => {
               Create THR
             </Button>
             <Button variant="primary" icon={Plus} onClick={() => setDraft({ hypothesisTitle: '', techniqueIds: [] })}>
-              New report
+              New record
             </Button>
           </>
         }
       />
+
+      {/* Phase progress: 10 hunts per phase */}
+      {(phases.length > 0 || unphased > 0) && (
+        <div className="mb-4 flex flex-wrap gap-2" role="radiogroup" aria-label="Phase">
+          {phases.map((p) => {
+            const n = counts.get(p) ?? 0;
+            const selected = phase === p;
+            return (
+              <button
+                key={p}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => setPhase(selected ? 'all' : p)}
+                className={cn(
+                  'min-w-36 rounded-lg border px-3 py-2 text-left transition-colors',
+                  selected ? 'border-accent bg-accent-soft' : 'border-border bg-surface hover:border-border-strong',
+                )}
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[13px] font-semibold text-fg">Phase {p}</span>
+                  <span className={cn('text-sm font-bold tabular-nums', n >= HUNTS_PER_PHASE ? 'text-success-text' : 'text-accent-text')}>
+                    {n}/{HUNTS_PER_PHASE}
+                  </span>
+                </div>
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-3">
+                  <div className={cn('h-full rounded-full', n >= HUNTS_PER_PHASE ? 'bg-success' : 'bg-accent')} style={{ width: `${Math.min(100, (n / HUNTS_PER_PHASE) * 100)}%` }} />
+                </div>
+              </button>
+            );
+          })}
+          {unphased > 0 && (
+            <button
+              type="button"
+              role="radio"
+              aria-checked={phase === 'none'}
+              onClick={() => setPhase(phase === 'none' ? 'all' : 'none')}
+              title="Records saved before phases were tracked. Open one to assign a phase."
+              className={cn(
+                'rounded-lg border border-dashed px-3 py-2 text-left text-[13px] transition-colors',
+                phase === 'none' ? 'border-accent bg-accent-soft text-fg' : 'border-border text-fg-muted hover:text-fg',
+              )}
+            >
+              <div className="font-semibold">No phase</div>
+              <div className="mt-0.5 text-xs">{unphased} record{unphased === 1 ? '' : 's'}</div>
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative w-full sm:w-80">
@@ -110,6 +165,20 @@ export const ReportsView: React.FC = () => {
             <option key={o}>{o}</option>
           ))}
         </Select>
+        <Select
+          value={String(phase)}
+          onChange={(e) => setPhase(e.target.value === 'all' || e.target.value === 'none' ? e.target.value : Number(e.target.value))}
+          className="h-8 w-auto text-[13px]"
+          aria-label="Phase"
+        >
+          <option value="all">All phases</option>
+          {phases.map((p) => (
+            <option key={p} value={p}>
+              Phase {p}
+            </option>
+          ))}
+          {unphased > 0 && <option value="none">No phase</option>}
+        </Select>
         <span className="ml-auto text-[13px] text-fg-subtle">
           {reports.length} of {clientReports.length}
         </span>
@@ -119,12 +188,12 @@ export const ReportsView: React.FC = () => {
         <Card>
           <EmptyState
             icon={FileText}
-            title={clientReports.length ? 'No reports match' : 'No hunt reports yet'}
+            title={clientReports.length ? 'No records match' : 'No hypothesis records yet'}
             description={clientReports.length ? 'Try a different search or outcome.' : 'Log the first hunt for this client.'}
             action={
               !clientReports.length && (
                 <Button variant="primary" icon={Plus} onClick={() => setDraft({ hypothesisTitle: '', techniqueIds: [] })}>
-                  New report
+                  New record
                 </Button>
               )
             }
@@ -147,6 +216,7 @@ export const ReportsView: React.FC = () => {
                       {active && <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-accent" />}
                       <div className="line-clamp-2 text-sm font-medium text-fg">{r.hypothesisTitle}</div>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        {r.phase && <Badge tone="violet">Phase {r.phase}</Badge>}
                         <Badge tone={outcomeTone(r.outcome)}>{r.outcome}</Badge>
                         {r.severityScore && <Badge tone={severityTone(r.severityScore.severityLevel)}>{r.severityScore.severityLevel}</Badge>}
                         <span className="text-xs text-fg-subtle">

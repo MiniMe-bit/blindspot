@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { IconButton } from './Button';
@@ -30,7 +31,8 @@ export const Modal: React.FC<ModalProps> = ({ open, onClose, title, description,
 
   if (!open) return null;
 
-  return (
+  // Portal to <body>: a parent with transform/backdrop-filter would otherwise trap the fixed overlay.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:items-center">
       <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
       <div
@@ -48,6 +50,7 @@ export const Modal: React.FC<ModalProps> = ({ open, onClose, title, description,
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
         {footer && <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };

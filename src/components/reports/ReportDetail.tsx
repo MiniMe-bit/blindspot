@@ -4,6 +4,7 @@ import type { ClientOrg, DetectionPlatform, HuntReport, ThreatHuntReportDocument
 import { useApp } from '../../app/AppContext';
 import { downloadThreatHuntDoc, printThreatHuntPdf } from '../../utils/thrExporter';
 import { formatDate } from '../../lib/coverage';
+import { HUNTS_PER_PHASE, phaseCounts, phaseOptions } from '../../lib/phases';
 import { Badge, Button, Card, CodeBlock, SectionLabel, outcomeTone, severityTone } from '../ui';
 
 const RULE_PLATFORM: Record<HuntReport['queryLanguage'], DetectionPlatform> = {
@@ -49,7 +50,8 @@ const THR_SECTIONS: Array<[keyof ThreatHuntReportDocument, string]> = [
 ];
 
 export const ReportDetail: React.FC<{ report: HuntReport }> = ({ report }) => {
-  const { currentClient, navigate, sendToDetections } = useApp();
+  const { currentClient, clientReports, navigate, sendToDetections, setReportPhase } = useApp();
+  const counts = phaseCounts(clientReports);
   const doc = thrDocFor(report, currentClient);
   const s = report.severityScore;
 
@@ -64,6 +66,22 @@ export const ReportDetail: React.FC<{ report: HuntReport }> = ({ report }) => {
             </Badge>
           )}
           {report.thrDocument && <Badge tone="accent">THR</Badge>}
+          <label className="ml-auto flex items-center gap-2 text-xs text-fg-subtle">
+            Phase
+            <select
+              value={report.phase ?? ''}
+              onChange={(e) => setReportPhase(report.id, e.target.value ? Number(e.target.value) : undefined)}
+              className="h-7 rounded-md border border-border bg-canvas px-2 text-xs font-medium text-fg focus:border-accent focus:outline-none"
+              aria-label="Phase"
+            >
+              <option value="">No phase</option>
+              {phaseOptions(clientReports).map((p) => (
+                <option key={p} value={p}>
+                  Phase {p} ({counts.get(p) ?? 0}/{HUNTS_PER_PHASE})
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         <h2 className="mt-2 text-base font-semibold leading-snug text-fg">{report.hypothesisTitle}</h2>
         <p className="mt-1 text-[13px] text-fg-muted">

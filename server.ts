@@ -4,6 +4,7 @@ import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { changePasswordHandler, ensureInitialUsers, loginHandler, logoutHandler, meHandler, requireAuth } from './server/auth';
 
 dotenv.config();
 
@@ -15,6 +16,14 @@ const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+
+// Auth: every /api/ai route requires a signed-in hunter.
+ensureInitialUsers();
+app.post('/api/auth/login', loginHandler);
+app.post('/api/auth/logout', logoutHandler);
+app.get('/api/auth/me', meHandler);
+app.post('/api/auth/change-password', changePasswordHandler);
+app.use('/api/ai', requireAuth);
 
 // Initialize Gemini Client with User-Agent as instructed
 const apiKey = process.env.GEMINI_API_KEY || '';
@@ -100,19 +109,31 @@ app.post('/api/ai/generate-daily-hunts', async (req: Request, res: Response) => 
   try {
     const { client } = req.body;
 
-    const prompt = `Generate 2 new daily threat hunt ideas for client "${client?.name}" in "${client?.industry}" sector reflecting current 2026 threat landscape.
-Incorporate real recent 2026 CVEs (e.g. CISA KEVs), active 2026 ransomware campaigns (e.g. Qilin, RansomHub, Scattered Spider), or high-risk blind spots.
+    const prompt = `Generate 3 new daily threat hunt ideas for client "${client?.name}" in "${client?.industry}" sector reflecting the current threat landscape.
+Client telemetry: ${(client?.primaryTelemetry || []).join(', ')}
+Known adversaries for this client: ${(client?.threatProfile?.primaryAdversaries || []).join(', ')}
+Draw from a mix of: exploited CVEs (CISA KEV), ransomware operations, APT / nation-state activity, commodity malware (loaders, infostealers, RATs), ClickFix / fake-CAPTCHA social engineering, and ATT&CK coverage gaps.
+For EVERY hunt write an equivalent hunting query for each of these platforms (use each platform's real field names):
+- "crowdstrike": CrowdStrike Falcon event search (FQL / LogScale syntax, e.g. #event_simpleName=ProcessRollup2)
+- "defender": Microsoft Defender XDR advanced hunting KQL (DeviceProcessEvents etc., use Timestamp)
+- "trendmicro": Trend Micro Vision One search syntax (field:value with AND/OR)
+- "elastic": Elastic EQL against ECS fields
+- "sigma": a complete Sigma rule in YAML
+- "splunk": Splunk SPL (Sysmon or CIM field names)
+For "references", only include URLs you are certain exist (prefer https://attack.mitre.org technique pages and official CISA / vendor advisories). Never invent URLs.
 Format response as a JSON array of objects with:
 [
   {
-    "source": "CVE / CISA KEV" | "Ransomware Campaign" | "Threat Actor Intel" | "Coverage Gap",
-    "sourceReference": "e.g. CVE-2026-21890 or 2026 Ransomware Campaign Alert",
+    "source": "CVE / CISA KEV" | "Ransomware" | "APT" | "Malware" | "ClickFix" | "Coverage Gap",
+    "sourceReference": "e.g. CVE ID, campaign or malware family name",
     "priority": "Critical" | "High" | "Medium",
     "hypothesisName": "Clear hypothesis title",
     "techniques": [ { "id": "T1190", "name": "Exploit Public-Facing App", "tactic": "Initial Access" } ],
     "dataSourcesRequired": ["WAF Telemetry", "EDR Process Creation"],
     "summaryAndRationale": "Detailed background on adversary exploitation",
-    "suggestedQuery": { "language": "KQL", "code": "Detection query string" },
+    "suggestedQuery": { "language": "KQL", "code": "same as platformQueries.defender" },
+    "platformQueries": { "crowdstrike": "...", "defender": "...", "trendmicro": "...", "elastic": "...", "sigma": "...", "splunk": "..." },
+    "references": [ { "title": "Article title", "publisher": "MITRE ATT&CK", "url": "https://attack.mitre.org/techniques/T1190/" } ],
     "expectedBaseline": "Description of normal traffic/behavior",
     "truePositiveExample": "Concrete log event indicating compromise",
     "aiHuntScore": {
@@ -634,7 +655,7 @@ function getFallbackDailyHunts(client: any) {
       }
     },
     {
-      source: 'Ransomware Campaign',
+      source: 'Ransomware',
       sourceReference: 'Qilin & RansomHub 2026 Healthcare Double-Extortion Surge (CISA Advisory AA26-088A)',
       priority: 'Critical',
       hypothesisName: '2026 Ransomware Inhibit Recovery: Volume Shadow Deletion via VSSAdmin & EDR Service Neutralization',

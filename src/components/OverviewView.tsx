@@ -1,10 +1,13 @@
 import React, { useMemo } from 'react';
-import { ArrowRight, FileText, Plus, ShieldAlert, Crosshair, Radar } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Plus, ShieldAlert, Crosshair, Radar, Target, Grid3X3, ShieldCheck } from 'lucide-react';
 import { useApp } from '../app/AppContext';
 import { SECTOR_THREAT_INTEL } from '../data/mockData';
-import { coveredTechniqueSet, coverageSummary, formatDate, tacticCoverage } from '../lib/coverage';
+import { coveredTechniqueSet, coverageSummary, formatDate } from '../lib/coverage';
 import { computePriority } from '../lib/huntPriority';
-import { Badge, Button, Card, CardHeader, EmptyState, Meter, PageHeader, Stat, outcomeTone, severityTone } from './ui';
+import { sourceDef } from '../lib/huntCatalog';
+import { Badge, Button, Card, CardHeader, EmptyState, Stat, outcomeTone, severityTone } from './ui';
+import { ClientLogo } from './ui/ClientLogo';
+import { TacticCoverage } from './overview/TacticCoverage';
 
 const SEVERITY_RANK: Record<string, number> = { Critical: 3, High: 2, Medium: 1, Low: 0 };
 
@@ -13,7 +16,6 @@ export const OverviewView: React.FC = () => {
 
   const covered = useMemo(() => coveredTechniqueSet(clientReports), [clientReports]);
   const coverage = coverageSummary(covered);
-  const tactics = useMemo(() => tacticCoverage(covered), [covered]);
 
   const total = clientReports.length;
   const tpCount = clientReports.filter((r) => r.outcome === 'True Positive').length;
@@ -48,38 +50,71 @@ export const OverviewView: React.FC = () => {
 
   return (
     <>
-      <PageHeader
-        title="Overview"
-        description={
-          <>
-            {currentClient.name} · <span className="capitalize">{currentClient.industry}</span> · {currentClient.threatProfile.riskTolerance} risk
-            tolerance
-          </>
-        }
-        actions={
-          <>
-            <Button icon={FileText} onClick={openThr}>
-              Create THR
-            </Button>
-            <Button variant="primary" icon={Plus} onClick={() => startReport()}>
-              New hunt report
-            </Button>
-          </>
-        }
-      />
+      <button
+        type="button"
+        onClick={() => navigate('clients')}
+        className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-fg-muted hover:text-fg"
+      >
+        <ArrowLeft className="size-4" /> All clients
+      </button>
+
+      {/* Client profile */}
+      <Card className="mb-6">
+        <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-start">
+          <ClientLogo client={currentClient} size="lg" />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <h1 className="text-2xl font-semibold tracking-tight text-fg">{currentClient.name}</h1>
+                <p className="mt-1 text-sm text-fg-muted">
+                  <span className="capitalize">{currentClient.industry}</span> · {currentClient.threatProfile.riskTolerance} risk tolerance
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button icon={FileText} onClick={openThr}>
+                  Create THR
+                </Button>
+                <Button variant="primary" icon={Plus} onClick={() => startReport()}>
+                  New hypothesis record
+                </Button>
+              </div>
+            </div>
+            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-fg-muted">{currentClient.description}</p>
+            <dl className="mt-4 grid grid-cols-1 gap-4 text-[13px] md:grid-cols-3">
+              <ProfileList label="Telemetry onboarded" items={currentClient.primaryTelemetry} />
+              <ProfileList label="Known adversaries" items={currentClient.threatProfile.primaryAdversaries} />
+              <ProfileList label="Crown jewels" items={currentClient.threatProfile.topTargetedAssets} />
+            </dl>
+          </div>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Hunts logged" value={total} detail={`${last30} in the last 30 days`} onClick={() => navigate('reports')} />
-        <Stat label="True positives" value={tpCount} detail={total ? `${tpRate}% of hunts` : 'No hunts yet'} onClick={() => navigate('reports')} />
+        <Stat vivid label="Hunts logged" value={total} tone="accent" icon={Crosshair} detail={`${last30} in the last 30 days`} onClick={() => navigate('reports')} />
         <Stat
+          vivid
+          label="True positives"
+          value={tpCount}
+          tone="danger"
+          icon={Target}
+          detail={total ? `${tpRate}% of hunts` : 'No hunts yet'}
+          onClick={() => navigate('reports')}
+        />
+        <Stat
+          vivid
           label="ATT&CK coverage"
           value={`${coverage.percent}%`}
+          tone="violet"
+          icon={Grid3X3}
           detail={`${coverage.covered} of ${coverage.total} techniques hunted`}
           onClick={() => navigate('coverage')}
         />
         <Stat
+          vivid
           label="Detection rules"
           value={clientRules.length}
+          tone="teal"
+          icon={ShieldCheck}
           detail={`${prodRules} in production`}
           onClick={() => navigate('detections')}
         />
@@ -90,11 +125,12 @@ export const OverviewView: React.FC = () => {
           {/* Findings */}
           <Card>
             <CardHeader
+              tone="danger"
               title="Findings needing attention"
               description="High or critical severity, and unscored true positives or follow-ups."
               actions={
                 <Button size="sm" variant="ghost" iconRight={ArrowRight} onClick={() => navigate('reports')}>
-                  All reports
+                  All records
                 </Button>
               }
             />
@@ -137,36 +173,14 @@ export const OverviewView: React.FC = () => {
           </Card>
 
           {/* Coverage by tactic */}
-          <Card>
-            <CardHeader
-              title="Coverage by tactic"
-              description={`${coverage.covered} of ${coverage.total} catalog techniques have at least one hunt.`}
-              actions={
-                <Button size="sm" variant="ghost" iconRight={ArrowRight} onClick={() => navigate('coverage')}>
-                  Coverage
-                </Button>
-              }
-            />
-            <div className="grid grid-cols-1 gap-x-8 gap-y-3 px-5 py-4 sm:grid-cols-2">
-              {tactics.map((t) => (
-                <div key={t.id} className="min-w-0">
-                  <div className="mb-1 flex items-center justify-between gap-2 text-[13px]">
-                    <span className="truncate text-fg-muted">{t.name}</span>
-                    <span className="shrink-0 tabular-nums text-fg-subtle">
-                      {t.covered}/{t.total}
-                    </span>
-                  </div>
-                  <Meter value={t.percent} tone={t.covered === 0 ? 'warning' : 'accent'} />
-                </div>
-              ))}
-            </div>
-          </Card>
+          <TacticCoverage covered={covered} onStartHunt={startReport} onOpenCoverage={() => navigate('coverage')} />
         </div>
 
         <div className="space-y-6">
           {/* Hunt queue */}
           <Card>
             <CardHeader
+              tone="teal"
               title="Hunt queue"
               actions={
                 <Button size="sm" variant="ghost" iconRight={ArrowRight} onClick={() => navigate('hunts')}>
@@ -175,7 +189,7 @@ export const OverviewView: React.FC = () => {
               }
             />
             {queue.length === 0 ? (
-              <EmptyState icon={Crosshair} title="Queue is empty" description="Generate new hunt ideas from Today's hunts." />
+              <EmptyState icon={Crosshair} title="Queue is empty" description="Generate new hunt ideas from What's New." />
             ) : (
               <ul className="divide-y divide-border">
                 {queue.map((h) => (
@@ -187,7 +201,7 @@ export const OverviewView: React.FC = () => {
                     >
                       <div className="flex items-center gap-2">
                         <Badge tone={severityTone(h.priority)}>{h.priority}</Badge>
-                        <span className="truncate text-xs text-fg-subtle">{h.source}</span>
+                        <Badge tone={sourceDef(h.source).tone}>{sourceDef(h.source).label}</Badge>
                       </div>
                       <div className="mt-1.5 line-clamp-2 text-[13px] font-medium text-fg">{h.hypothesisName}</div>
                     </button>
@@ -197,11 +211,16 @@ export const OverviewView: React.FC = () => {
             )}
           </Card>
 
-          {/* Sector intel */}
+          {/* Threat intelligence for the client's sector */}
           <Card>
             <CardHeader
-              title="Sector intel"
-              description={<span className="capitalize">{currentClient.industry}</span>}
+              tone="pink"
+              title="Threat Intelligence [TTP Hunts]"
+              description={
+                <>
+                  Sector: <span className="font-medium capitalize text-fg">{currentClient.industry}</span>
+                </>
+              }
               actions={
                 <Button size="sm" variant="ghost" iconRight={ArrowRight} onClick={() => navigate('intel')}>
                   All intel
@@ -209,7 +228,7 @@ export const OverviewView: React.FC = () => {
               }
             />
             {intel.length === 0 ? (
-              <EmptyState icon={Radar} title="No sector intel" description="No advisories tagged for this industry." />
+              <EmptyState icon={Radar} title="No threat intelligence" description={`No TTP advisories tagged for the ${currentClient.industry} sector.`} />
             ) : (
               <ul className="divide-y divide-border">
                 {intel.map((i) => (
@@ -235,3 +254,12 @@ export const OverviewView: React.FC = () => {
     </>
   );
 };
+
+const ProfileList: React.FC<{ label: string; items: string[] }> = ({ label, items }) => (
+  <div>
+    <dt className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">{label}</dt>
+    <dd className="flex flex-wrap gap-1.5">
+      {items.length ? items.map((i) => <Badge key={i}>{i}</Badge>) : <span className="text-fg-subtle">None recorded</span>}
+    </dd>
+  </div>
+);
