@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+/*
+ * Blindspot design tokens.
+ * Use the semantic names (bg-surface, text-fg-muted, border-border, bg-accent, ...)
+ * in all new code. Raw palette classes (cyan-*, slate-*) are legacy.
+ */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* Surfaces */
+  --color-canvas: #0b0d12;
+  --color-surface: #111318;
+  --color-surface-2: #161920;
+  --color-surface-3: #1d2028;
+  --color-border: #242833;
+  --color-border-strong: #323744;
+
+  /* Text */
+  --color-fg: #e6e8ec;
+  --color-fg-muted: #a2a8b5;
+  --color-fg-subtle: #6f7685;
+
+  /* Accent (single brand color) */
+  --color-accent: #5b8def;
+  --color-accent-hover: #7099f1;
+  --color-accent-fg: #ffffff;
+  --color-accent-soft: rgb(91 141 239 / 0.12);
+  --color-accent-text: #9bb8f5;
+
+  /* Status */
+  --color-success: #3fb97f;
+  --color-success-soft: rgb(63 185 127 / 0.12);
+  --color-success-text: #7fd4a8;
+  --color-warning: #d9a441;
+  --color-warning-soft: rgb(217 164 65 / 0.12);
+  --color-warning-text: #e8c37d;
+  --color-danger: #e5645c;
+  --color-danger-soft: rgb(229 100 92 / 0.12);
+  --color-danger-text: #f0978f;
+
+  /*
+   * TRANSITIONAL: remap legacy palette classes still used by pages that have not
+   * been migrated to the token system yet (CreateTHRModal, MitreMatrixModal,
+   * DeckGeneratorView, AttackHeatmapView, ClientManagementModal).
+   * Delete this block once those files only use semantic tokens.
+   */
+  --color-cyan-100: #dde7fb;
+  --color-cyan-200: #c2d5f8;
+  --color-cyan-300: #9bb8f5;
+  --color-cyan-400: #7fa6f2;
+  --color-cyan-500: #5b8def;
+  --color-cyan-600: #4a7bdc;
+  --color-cyan-700: #3b62b3;
+  --color-cyan-800: #2a4478;
+  --color-cyan-900: #1f3155;
+  --color-cyan-950: #16223b;
+
+  --color-slate-100: #eef0f3;
+  --color-slate-200: #dcdfe5;
+  --color-slate-300: #c5c9d2;
+  --color-slate-400: #a2a8b5;
+  --color-slate-500: #6f7685;
+  --color-slate-600: #4a505e;
+  --color-slate-700: #323744;
+  --color-slate-800: #242833;
+  --color-slate-900: #111318;
+  --color-slate-950: #0b0d12;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    background-color: var(--color-canvas);
+    color: var(--color-fg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  code, pre, kbd, .font-mono {
+    font-family: var(--font-mono);
+  }
+
+  ::selection {
+    background: rgb(91 141 239 / 0.3);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  select:not(:disabled),
+  label[for] {
+    cursor: pointer;
+  }
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 8px;
+  border: 2px solid var(--color-canvas);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}

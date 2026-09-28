@@ -1,0 +1,6 @@
+{
+  "name": "Blindspot",
+  "description": "Threat hunting workspace: hunt reports, ATT&CK coverage, detection rules, severity scoring and executive briefings.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
