@@ -1,8 +1,14 @@
 # Blindspot
 
-Threat hunting workspace for managed hunting teams. Hunters sign in, pick a client, and work that
-client's hunts: hypothesis records, daily IOC hunting, threat intel, ATT&CK coverage, detection rules,
-severity scoring and executive PowerPoint briefings.
+**Turning threat hunting from scattered documents into a single source of intelligence.**
+
+Blindspot is a threat hunting operations platform for teams that hunt across multiple client
+environments. It brings every hypothesis hunt, threat-intel IOC hunt, finding, escalation and detection
+outcome into one client-scoped system of record, exposes where each client's detection coverage falls
+short, and tells the team what to hunt next. Executive reporting, once assembled by hand, is generated
+directly from that record.
+
+*The name reflects the mission: to find what is already there, but not yet visible.*
 
 > **Status:** MVP in progress. Workspace data (clients, records, IOC hunts, rules) is demo data stored in
 > the browser (`localStorage`). Hunter accounts are stored on the server. Reset the browser data from
@@ -10,6 +16,7 @@ severity scoring and executive PowerPoint briefings.
 
 ## Contents
 
+- [Problem statement](#problem-statement)
 - [Features](#features)
 - [Getting started](#getting-started)
 - [Configuration](#configuration)
@@ -20,19 +27,102 @@ severity scoring and executive PowerPoint briefings.
 - [UI conventions](#ui-conventions)
 - [Revamp status](#revamp-status)
 
+## Problem statement
+
+### Context
+
+Proactive threat hunting is one of the few security activities that finds adversaries before an alert
+fires. For a team serving several clients, every engagement produces three streams of work:
+
+1. **Hypothesis-driven hunts**, run in phases of ten, each closing with a verdict: true positive, false
+   positive, no result or needs follow-up.
+2. **Threat-intelligence IOC hunts**, run daily against newly published indicators and newly exploited
+   vulnerabilities, with confirmed hits escalated as incidents.
+3. **Executive reporting**, delivered to each client monthly and quarterly.
+
+### The challenge
+
+This work was captured as documents on SharePoint and local drives. Threat intelligence, escalations and
+findings existed only inside those reports. The knowledge was recorded, but it was not usable:
+
+> **The team could not answer the questions that matter most (what have we hunted for this client, what
+> did we find, what did we escalate, and where are we still blind) without manually reading through every
+> report.** Detection gaps were invisible, so the next hunt was chosen from memory rather than evidence.
+
+### Impact
+
+| # | Gap | Operational impact |
+| --- | --- | --- |
+| 1 | **No system of record.** Hypothesis reports stored as files across SharePoint and local drives. | Retrieving a past hunt, query or finding required searching document by document. |
+| 2 | **No outcome visibility.** Verdicts and phase progress buried inside individual reports. | No view of true positives, false positives or phase completion per client. |
+| 3 | **Fragmented intelligence.** IOC hunts and their escalations tracked apart from hypothesis hunts. | Threat categories, query volume and incident IDs could not be reviewed together. |
+| 4 | **No coverage model.** Hunts not mapped to MITRE ATT&CK. | Untested tactics and techniques, the client's real blind spots, remained hidden. |
+| 5 | **Reactive hunt planning.** No structured input for the next hunt. | Priorities depended on individual recall rather than sector threats and coverage gaps. |
+| 6 | **Manual report authoring.** Each threat hunt report (THR) written by hand and uploaded separately. | Analyst time diverted from hunting; records and reports drifted apart. |
+| 7 | **Untracked detection handoff.** Hunts promoted to detection rules were not followed up. | No visibility into whether a rule was awaiting approval, in production or needed tuning. |
+| 8 | **Inconsistent severity.** Findings rated case by case. | Severity differed between hunters and clients, weakening prioritisation. |
+| 9 | **Manual executive reporting.** Monthly and quarterly decks rebuilt from raw documents. | Every reporting cycle repeated the same manual data gathering. |
+
+### Objective
+
+Establish **one client-scoped system of record for all threat hunting work**, where each hunt is
+captured once and every downstream view is derived from it automatically: outcome tracking, coverage
+analysis, hunt planning and executive reporting. The goal is to move the team from reactive record-keeping
+to **evidence-driven, proactive hunting**.
+
+### The solution
+
+Blindspot resolves each gap with a dedicated capability built on the same underlying record.
+
+| Gap | Capability | How it is solved |
+| --- | --- | --- |
+| 1, 2 | **Hypothesis Record** | Every hunt is recorded per client and phase (ten hunts per phase) with its query, ATT&CK techniques, data sources, IOCs and verdict. Instantly searchable and filterable by phase and outcome. |
+| 6 | **Create THR** | A complete threat hunt report is generated from a title, summary, queries and findings, and stored as a record in the same step. No separate upload. |
+| 3 | **Daily IOC Hunting** | The daily threat-intel hunt sheet is imported directly. Titles, descriptions, threat categories, query counts, results and incident IDs are consolidated in one view, with category weighting and escalation totals. Re-imports are de-duplicated automatically. |
+| 4 | **ATT&CK Coverage** | Recorded hunts are mapped to the MITRE ATT&CK matrix, separating hunted from never-hunted techniques. Every gap is paired with the threat groups known to use it, a hunting approach and an example query. |
+| 5 | **Threat Intelligence [TTP Hunts]** and **What's New** | Sector-specific threat intelligence and prioritised hunt ideas, each with ready-to-run queries for the client's platform: CrowdStrike, Microsoft Defender, Trend Micro Vision One, Elastic, Sigma and Splunk. |
+| 7 | **Detection Rules** | Every hunt promoted to detection keeps a traceable rule record and lifecycle status: testing, pending client review, production, tuning needed or deprecated. |
+| 8 | **Severity Scoring** | A consistent, weighted severity from four factors: detection confidence, threat stage (attacker progression), exploitability and business impact. |
+| 9 | **Executive Decks** | Monthly and quarterly briefings generated from recorded data, including daily IOC hunting, and exported to PowerPoint in one click. |
+
+### Outcomes
+
+- **Instant recall.** Any hunt, finding, query or escalation for a client is retrieved from one screen,
+  without opening a single report.
+- **Visible blind spots.** Every catalogued ATT&CK technique is classified as hunted or not hunted, and
+  every gap comes with guidance to close it.
+- **Evidence-driven planning.** The next hunt is chosen from coverage gaps and sector threat intelligence,
+  not memory.
+- **Measurable progress.** Phase completion and verdict counts are tracked per client in real time.
+- **Reporting without rework.** Threat hunt reports and executive decks are produced from the record
+  itself, with every figure computed from logged work.
+
+### Scope
+
+| Delivered in the MVP | Planned beyond the MVP |
+| --- | --- |
+| Hunter authentication and client-scoped workspaces | Executing queries directly against client SIEM/EDR platforms |
+| Hypothesis records with phases, verdicts and THR generation | Automated ingestion of threat-intelligence feeds |
+| Daily IOC hunting with sheet import and escalation tracking | Centralised server-side storage of workspace data (currently per browser) |
+| ATT&CK coverage analysis, sector TTP hunts, multi-platform queries | Client-facing reporting portal |
+| Detection rule tracking, severity scoring, PowerPoint reporting | |
+
 ## Features
 
 | Area | What it does |
 | --- | --- |
 | **Sign-in** | Username/password per hunter, change password from the account menu, 12-hour sessions. |
 | **All clients** | Landing page after sign-in. Client pages stay locked until a client is picked. |
-| **Client overview** | Client profile, KPI tiles, findings, ATT&CK coverage by tactic with hunt guides, Threat Intelligence [TTP Hunts] for the client's sector. |
-| **Hypothesis Record** | Searchable hunt records, grouped into phases of 10 hunts. New records via form or document/THR upload. |
-| **Daily IOC Hunting** | Upload the daily threat-intel IOC / CVE-check sheet; totals, category weightage, escalations, de-duplicated log. |
-| **Threat intel** | Sector advisories with ready-made hunt packages. |
+| **Client overview** | Client profile, KPI tiles, findings needing attention, ATT&CK coverage by tactic with hunt guides, Threat Intelligence [TTP Hunts] for the client's sector. |
+| **Hypothesis Record** | Hunt records per phase (10 hunts each) with outcomes (TP, FP, no result, follow-up), search and filters. New records via the form or document import. |
+| **Create THR** | Generates a full threat hunt report from title, summary, queries and findings, and saves it as a hypothesis record. |
+| **Daily IOC Hunting** | Imports the daily threat-intel IOC / CVE-check sheet; totals, category weightage, escalations with incident IDs, de-duplicated log. |
+| **Threat intel** | Sector-based advisories with TTP hunt packages. |
 | **What's New** | Prioritised hunt ideas with queries for CrowdStrike (FQL), Microsoft Defender (KQL), Trend Micro Vision One, Elastic, Sigma and Splunk, plus reference reading. |
-| **Detection** | Detection rules promoted from hunts, and the ATT&CK coverage matrix. |
-| **Reporting** | Severity scoring and executive decks exported as PowerPoint (`.pptx`), including a Daily IOC Hunting slide. |
+| **Detection rules** | Rules promoted from hunts, with status: testing / staging, pending client review, production active, tuning needed, deprecated. |
+| **ATT&CK coverage** | Matrix of hunted and never-hunted techniques with ready-made hunts for the gaps. |
+| **Severity scoring** | Four-factor severity: detection confidence, threat stage, exploitability, business impact. |
+| **Executive decks** | Monthly or quarterly briefings from recorded data, exported as PowerPoint (`.pptx`), including a Daily IOC Hunting slide. |
 
 ## Getting started
 
