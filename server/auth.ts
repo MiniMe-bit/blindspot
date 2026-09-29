@@ -60,6 +60,9 @@ export function hashPassword(password: string, salt = crypto.randomBytes(16).toS
   return { salt, hash };
 }
 
+/** Hash checked when the username does not exist, so sign-in takes the same time either way (no username probing). */
+const DUMMY = hashPassword(crypto.randomBytes(16).toString('hex'));
+
 function verifyPassword(password: string, user: StoredUser): boolean {
   const candidate = crypto.scryptSync(password, user.salt, 64);
   const expected = Buffer.from(user.hash, 'hex');
@@ -191,7 +194,15 @@ function isLocked(key: string, max = MAX_FAILS) {
   return f.count >= max;
 }
 
+/** Drop expired entries so the table cannot grow without bound under a flood of random usernames. */
+function sweepFailures() {
+  const now = Date.now();
+  for (const [k, f] of failures) if (now - f.first > FAIL_WINDOW_MS) failures.delete(k);
+}
+setInterval(sweepFailures, FAIL_WINDOW_MS).unref();
+
 function recordFailure(key: string) {
+  if (failures.size > 50_000) sweepFailures();
   const f = failures.get(key);
   if (!f || Date.now() - f.first > FAIL_WINDOW_MS) failures.set(key, { count: 1, first: Date.now() });
   else f.count += 1;
@@ -231,7 +242,9 @@ export function loginHandler(req: Request, res: Response) {
   }
 
   const user = readUsers().find((u) => u.username.toLowerCase() === username);
-  if (!user || !verifyPassword(password, user)) {
+  // Always run one scrypt check, even for unknown usernames, so response time does not reveal who exists.
+  const ok = verifyPassword(password, user ?? ({ ...DUMMY } as StoredUser)) && Boolean(user);
+  if (!user || !ok) {
     recordFailure(key);
     recordFailure(ipKey);
     return res.status(401).json({ error: 'Username or password is incorrect.' });

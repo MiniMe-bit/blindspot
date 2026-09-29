@@ -23,6 +23,12 @@ function resolvesToPrivate(rawUrl: string): boolean {
     return true; // malformed encoding: refuse
   }
   pathname = pathname.replace(/\\/g, '/');
+  // Windows ignores trailing dots and spaces in names ('data.' opens 'data'), so strip them before
+  // comparing. '.' and '..' are kept as-is so parent-directory traversal is still resolved.
+  pathname = pathname
+    .split('/')
+    .map((seg) => (seg === '.' || seg === '..' ? seg : seg.replace(/[. ]+$/, '')))
+    .join('/');
 
   // /@fs/<absolute path> is Vite's direct file-system route.
   const target = pathname.startsWith('/@fs/')
