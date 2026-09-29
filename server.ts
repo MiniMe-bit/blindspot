@@ -4,6 +4,7 @@ import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { blockPrivateFiles, securityHeaders } from './server/security';
 import { changePasswordHandler, ensureInitialUsers, loginHandler, logoutHandler, meHandler, requireAuth } from './server/auth';
 
 dotenv.config();
@@ -14,8 +15,14 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.use(express.json({ limit: '25mb' }));
-app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+app.disable('x-powered-by');
+app.use(securityHeaders);
+// Must run before Vite: stops the dev server from serving data/users.json, credentials, server code.
+app.use(blockPrivateFiles);
+
+// Small JSON bodies everywhere; large bodies (document uploads) only for signed-in AI routes below.
+const smallJson = express.json({ limit: '100kb' });
+app.use((req, res, next) => (req.path.startsWith('/api/ai/') ? next() : smallJson(req, res, next)));
 
 // Auth: every /api/ai route requires a signed-in hunter.
 ensureInitialUsers();
@@ -23,7 +30,7 @@ app.post('/api/auth/login', loginHandler);
 app.post('/api/auth/logout', logoutHandler);
 app.get('/api/auth/me', meHandler);
 app.post('/api/auth/change-password', changePasswordHandler);
-app.use('/api/ai', requireAuth);
+app.use('/api/ai', requireAuth, express.json({ limit: '25mb' }));
 
 // Initialize Gemini Client with User-Agent as instructed
 const apiKey = process.env.GEMINI_API_KEY || '';

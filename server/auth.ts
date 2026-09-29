@@ -167,16 +167,18 @@ export function sessionUser(req: Request): PublicUser | null {
 
 const FAIL_WINDOW_MS = 15 * 60 * 1000;
 const MAX_FAILS = 5;
+/** Per-IP cap across all usernames, so one address cannot spray passwords over every account. */
+const MAX_FAILS_PER_IP = 20;
 const failures = new Map<string, { count: number; first: number }>();
 
-function isLocked(key: string) {
+function isLocked(key: string, max = MAX_FAILS) {
   const f = failures.get(key);
   if (!f) return false;
   if (Date.now() - f.first > FAIL_WINDOW_MS) {
     failures.delete(key);
     return false;
   }
-  return f.count >= MAX_FAILS;
+  return f.count >= max;
 }
 
 function recordFailure(key: string) {
@@ -195,11 +197,13 @@ export function loginHandler(req: Request, res: Response) {
   if (!username || !password) return res.status(400).json({ error: 'Enter your username and password.' });
 
   const key = `${req.ip}|${username}`;
-  if (isLocked(key)) return res.status(429).json({ error: 'Too many failed attempts. Wait 15 minutes and try again.' });
+  const ipKey = `${req.ip}|*`;
+  if (isLocked(key) || isLocked(ipKey, MAX_FAILS_PER_IP)) return res.status(429).json({ error: 'Too many failed attempts. Wait 15 minutes and try again.' });
 
   const user = readUsers().find((u) => u.username.toLowerCase() === username);
   if (!user || !verifyPassword(password, user)) {
     recordFailure(key);
+    recordFailure(ipKey);
     return res.status(401).json({ error: 'Username or password is incorrect.' });
   }
 
