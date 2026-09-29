@@ -8,7 +8,9 @@ import type { NextFunction, Request, Response } from 'express';
  *
  * - Users live in data/users.json with scrypt password hashes (never plaintext).
  * - Sessions are an HMAC-signed, HttpOnly cookie; no server-side session store needed.
- * - Add or reset a user with: npm run user:add -- <username> "<Full Name>" <analyst|lead|admin>
+ * - Admins add hunters, reset passwords and clear lockouts in the app (Account menu → Manage hunters)
+ *   or with: npm run user:add -- <username> "<Full Name>" <analyst|lead|admin>
+ * - Temporary passwords (new hunter / reset) must be changed at the next sign-in.
  */
 
 export type Role = 'analyst' | 'lead' | 'admin';
@@ -22,9 +24,13 @@ export interface StoredUser {
   salt: string;
   hash: string;
   createdAt: string;
+  /** Set for admin-issued temporary passwords; the hunter must pick a new one before using the app. */
+  mustChangePassword?: boolean;
+  /** Bumped on every password change or reset so sessions issued before it stop working. */
+  tokenVersion?: number;
 }
 
-export type PublicUser = Omit<StoredUser, 'salt' | 'hash' | 'createdAt'>;
+export type PublicUser = Omit<StoredUser, 'salt' | 'hash' | 'createdAt' | 'tokenVersion'>;
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
@@ -77,7 +83,7 @@ export function writeUsers(users: StoredUser[]) {
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
 }
 
-export const toPublic = ({ salt, hash, createdAt, ...rest }: StoredUser): PublicUser => rest;
+export const toPublic = ({ salt, hash, createdAt, tokenVersion, ...rest }: StoredUser): PublicUser => rest;
 
 /** Readable random password, e.g. "hunt-7f3a-92c1-e0b4". */
 export const generatePassword = () => `hunt-${crypto.randomBytes(6).toString('hex').match(/.{4}/g)!.join('-')}`;
@@ -99,14 +105,14 @@ export function ensureInitialUsers() {
   const users = seed.map((u) => {
     const password = generatePassword();
     lines.push(`${u.username.padEnd(16)} ${password}   (${u.role})`);
-    return { ...u, ...hashPassword(password), createdAt: new Date().toISOString() };
+    return { ...u, ...hashPassword(password), createdAt: new Date().toISOString(), mustChangePassword: true, tokenVersion: 0 };
   });
   writeUsers(users);
   fs.writeFileSync(
     INITIAL_CREDENTIALS_FILE,
     `Blindspot initial hunter accounts (generated ${new Date().toISOString()}).\n` +
-      `Share each password with its owner, then delete this file.\n` +
-      `Reset a password with: npm run user:add -- <username> "<Full Name>" <role>\n\n` +
+      `These are temporary passwords: each hunter must change theirs at first sign-in.\n` +
+      `Share each password with its owner, then delete this file.\n\n` +
       lines.join('\n') +
       '\n',
   );
@@ -119,12 +125,12 @@ export function ensureInitialUsers() {
 
 const sign = (value: string) => crypto.createHmac('sha256', getSecret()).update(value).digest('base64url');
 
-function createToken(userId: string) {
-  const payload = Buffer.from(JSON.stringify({ uid: userId, exp: Date.now() + SESSION_TTL_MS })).toString('base64url');
+function createToken(user: StoredUser) {
+  const payload = Buffer.from(JSON.stringify({ uid: user.id, tv: user.tokenVersion ?? 0, exp: Date.now() + SESSION_TTL_MS })).toString('base64url');
   return `${payload}.${sign(payload)}`;
 }
 
-function readToken(token: string | undefined): string | null {
+function readToken(token: string | undefined): { uid: string; tv: number } | null {
   if (!token) return null;
   const [payload, sig] = token.split('.');
   if (!payload || !sig) return null;
@@ -132,8 +138,9 @@ function readToken(token: string | undefined): string | null {
   const given = Buffer.from(sig);
   if (expected.length !== given.length || !crypto.timingSafeEqual(expected, given)) return null;
   try {
-    const { uid, exp } = JSON.parse(Buffer.from(payload, 'base64url').toString());
-    return typeof uid === 'string' && typeof exp === 'number' && exp > Date.now() ? uid : null;
+    const { uid, tv, exp } = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    if (typeof uid !== 'string' || typeof exp !== 'number' || exp <= Date.now()) return null;
+    return { uid, tv: typeof tv === 'number' ? tv : 0 };
   } catch {
     return null;
   }
@@ -155,10 +162,12 @@ function setSessionCookie(res: Response, token: string, maxAgeMs: number) {
 }
 
 export function sessionUser(req: Request): PublicUser | null {
-  const uid = readToken(getCookie(req, COOKIE));
-  if (!uid) return null;
-  const user = readUsers().find((u) => u.id === uid);
-  return user ? toPublic(user) : null;
+  const token = readToken(getCookie(req, COOKIE));
+  if (!token) return null;
+  const user = readUsers().find((u) => u.id === token.uid);
+  // A password change or admin reset bumps tokenVersion and ends older sessions.
+  if (!user || (user.tokenVersion ?? 0) !== token.tv) return null;
+  return toPublic(user);
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +178,7 @@ const FAIL_WINDOW_MS = 15 * 60 * 1000;
 const MAX_FAILS = 5;
 /** Per-IP cap across all usernames, so one address cannot spray passwords over every account. */
 const MAX_FAILS_PER_IP = 20;
+/** Keys: "<ip>|<username>", "<ip>|<username>|change" and "<ip>|*" (per-address cap). */
 const failures = new Map<string, { count: number; first: number }>();
 
 function isLocked(key: string, max = MAX_FAILS) {
@@ -187,6 +197,24 @@ function recordFailure(key: string) {
   else f.count += 1;
 }
 
+/** Usernames with an active sign-in or change-password lockout, from any address. */
+function lockedUsernames(): Set<string> {
+  const locked = new Set<string>();
+  for (const key of [...failures.keys()]) {
+    const username = key.split('|')[1];
+    if (username && username !== '*' && isLocked(key)) locked.add(username);
+  }
+  return locked;
+}
+
+/** Clear a hunter's lockouts, plus per-address caps so a shared office IP is not still blocked. */
+function clearLockouts(username: string) {
+  for (const key of [...failures.keys()]) {
+    const u = key.split('|')[1];
+    if (u === username || u === '*') failures.delete(key);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
@@ -198,7 +226,9 @@ export function loginHandler(req: Request, res: Response) {
 
   const key = `${req.ip}|${username}`;
   const ipKey = `${req.ip}|*`;
-  if (isLocked(key) || isLocked(ipKey, MAX_FAILS_PER_IP)) return res.status(429).json({ error: 'Too many failed attempts. Wait 15 minutes and try again.' });
+  if (isLocked(key) || isLocked(ipKey, MAX_FAILS_PER_IP)) {
+    return res.status(429).json({ error: 'Too many failed attempts. Wait 15 minutes, or ask an admin to unlock your account.' });
+  }
 
   const user = readUsers().find((u) => u.username.toLowerCase() === username);
   if (!user || !verifyPassword(password, user)) {
@@ -208,7 +238,7 @@ export function loginHandler(req: Request, res: Response) {
   }
 
   failures.delete(key);
-  setSessionCookie(res, createToken(user.id), SESSION_TTL_MS);
+  setSessionCookie(res, createToken(user), SESSION_TTL_MS);
   return res.json({ user: toPublic(user) });
 }
 
@@ -233,9 +263,11 @@ export function changePasswordHandler(req: Request, res: Response) {
   }
 
   failures.delete(key);
-  Object.assign(user, hashPassword(newPassword));
+  Object.assign(user, hashPassword(newPassword), { mustChangePassword: false, tokenVersion: (user.tokenVersion ?? 0) + 1 });
   writeUsers(users);
-  return res.json({ ok: true });
+  // Other sessions for this hunter end; this one continues with a fresh cookie.
+  setSessionCookie(res, createToken(user), SESSION_TTL_MS);
+  return res.json({ ok: true, user: toPublic(user) });
 }
 
 export function logoutHandler(_req: Request, res: Response) {
@@ -250,6 +282,81 @@ export function meHandler(req: Request, res: Response) {
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (!sessionUser(req)) return res.status(401).json({ error: 'Not signed in.' });
+  const user = sessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Not signed in.' });
+  if (user.mustChangePassword) return res.status(403).json({ error: 'Change your temporary password to continue.' });
   next();
+}
+
+// ---------------------------------------------------------------------------
+// Admin: manage hunters
+// ---------------------------------------------------------------------------
+
+const ROLES: Role[] = ['analyst', 'lead', 'admin'];
+const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{1,31}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  const user = sessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Not signed in.' });
+  if (user.mustChangePassword) return res.status(403).json({ error: 'Change your temporary password to continue.' });
+  if (user.role !== 'admin') return res.status(403).json({ error: 'Only admins can manage hunters.' });
+  next();
+}
+
+export function listUsersHandler(_req: Request, res: Response) {
+  const locked = lockedUsernames();
+  const users = readUsers().map((u) => ({ ...toPublic(u), createdAt: u.createdAt, locked: locked.has(u.username) }));
+  res.json({ users });
+}
+
+export function createUserHandler(req: Request, res: Response) {
+  const username = String(req.body?.username ?? '').trim().toLowerCase();
+  const name = String(req.body?.name ?? '').trim();
+  const email = String(req.body?.email ?? '').trim();
+  const role = String(req.body?.role ?? 'analyst') as Role;
+
+  if (!USERNAME_RE.test(username)) return res.status(400).json({ error: 'Username must be 2–32 characters: letters, numbers, dots, dashes or underscores.' });
+  if (!name || name.length > 80) return res.status(400).json({ error: "Enter the hunter's full name." });
+  if (!ROLES.includes(role)) return res.status(400).json({ error: 'Role must be analyst, lead or admin.' });
+  if (email && !EMAIL_RE.test(email)) return res.status(400).json({ error: 'Enter a valid email address or leave it empty.' });
+
+  const users = readUsers();
+  if (users.some((u) => u.username === username)) return res.status(409).json({ error: `A hunter named "${username}" already exists.` });
+
+  const temporaryPassword = generatePassword();
+  const user: StoredUser = {
+    id: `user-${crypto.randomUUID()}`,
+    username,
+    name,
+    email,
+    role,
+    ...hashPassword(temporaryPassword),
+    createdAt: new Date().toISOString(),
+    mustChangePassword: true,
+    tokenVersion: 0,
+  };
+  users.push(user);
+  writeUsers(users);
+  res.json({ user: toPublic(user), temporaryPassword });
+}
+
+export function resetPasswordHandler(req: Request, res: Response) {
+  const users = readUsers();
+  const user = users.find((u) => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: 'Hunter not found.' });
+
+  const temporaryPassword = generatePassword();
+  // New temporary password, forced change at next sign-in, and every existing session for this hunter ends.
+  Object.assign(user, hashPassword(temporaryPassword), { mustChangePassword: true, tokenVersion: (user.tokenVersion ?? 0) + 1 });
+  writeUsers(users);
+  clearLockouts(user.username);
+  res.json({ user: toPublic(user), temporaryPassword });
+}
+
+export function unlockHandler(req: Request, res: Response) {
+  const user = readUsers().find((u) => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: 'Hunter not found.' });
+  clearLockouts(user.username);
+  res.json({ ok: true });
 }

@@ -56,3 +56,10 @@ export function securityHeaders(_req: Request, res: Response, next: NextFunction
   }
   next();
 }
+
+/** State-changing API calls must be JSON. HTML forms (the usual CSRF vector) can only send form or text bodies. */
+export function requireJsonForWrites(req: Request, res: Response, next: NextFunction) {
+  if (!req.path.startsWith('/api/') || req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  if (!req.is('application/json')) return res.status(415).json({ error: 'Requests must be sent as JSON.' });
+  next();
+}

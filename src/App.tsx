@@ -16,6 +16,7 @@ import { NavRail } from './components/layout/NavRail';
 import { TopBar } from './components/layout/TopBar';
 import { fetchSession, logout, UNAUTHORIZED_EVENT } from './services/auth';
 import { LoginView } from './components/LoginView';
+import { SetPasswordView } from './components/SetPasswordView';
 import { ClientsView } from './components/ClientsView';
 import { OverviewView } from './components/OverviewView';
 import { TodaysHuntsView } from './components/TodaysHuntsView';
@@ -244,6 +245,11 @@ export default function App() {
         }}
       />
     );
+  }
+
+  // Temporary password (new hunter or admin reset): nothing else opens until it is changed.
+  if (auth.user.mustChangePassword) {
+    return <SetPasswordView user={auth.user} onDone={(user) => setAuth({ status: 'signed-in', user })} onSignOut={signOut} />;
   }
 
   return (

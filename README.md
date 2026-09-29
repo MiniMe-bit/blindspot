@@ -157,21 +157,38 @@ Create a `.env` file in the project root (see `.env.example`). The server reads 
 
 ## Hunter accounts
 
-- On first start the server creates accounts for the demo hunters (`sarah.lin`, `marcus.vance`,
-  `elena.rostova`) with random passwords, written once to `data/initial-credentials.txt`.
-  Hand them out, then delete that file.
-- Passwords are stored only as scrypt hashes in `data/users.json`. The `data/` folder is git-ignored.
-- Five failed sign-ins lock that username for 15 minutes from the same IP address.
+- Passwords are stored only as scrypt hashes in `data/users.json`. The `data/` folder is git-ignored
+  and is never served by the web server.
+- **Temporary passwords** (new hunters and resets) must be replaced at the next sign-in; nothing else
+  in the app opens until the hunter sets their own password.
+- Changing or resetting a password signs that hunter out of every other session.
+- Five failed sign-ins lock that username for 15 minutes from the same IP address (and 20 failures lock
+  the address). Lockouts clear on their own after 15 minutes, or an admin can unlock immediately.
 - Hunters change their own password from **Account menu → Change password**.
 
-Create a hunter, or reset a password:
+### Admin: manage hunters
+
+Hunters with the `admin` role get **Account menu → Manage hunters**, where they can:
+
+| Action | Result |
+| --- | --- |
+| **Add hunter** | Creates the account (name, username, optional email, role) and shows a temporary password once. |
+| **Reset password** | Issues a new temporary password, signs the hunter out everywhere and clears their lockout. |
+| **Unlock** | Lifts a sign-in lockout straight away (shown as "Locked out" in the list). |
+
+The server enforces the admin role on every one of these actions, not just the menu.
+
+### Command line
+
+On the machine hosting Blindspot, an account can also be created or reset from the project folder:
 
 ```bash
 npm run user:add -- jane.doe "Jane Doe" analyst jane@example.com
 ```
 
-Roles are `analyst`, `lead` or `admin`. The new password is printed once; set `BLINDSPOT_PASSWORD`
-to choose it instead.
+Roles are `analyst`, `lead` or `admin`. A temporary password is printed once and must be changed at
+first sign-in; set `BLINDSPOT_PASSWORD` to choose a permanent password instead. Use this to create the
+first admin on a fresh install.
 
 ## Daily IOC Hunting sheet format
 

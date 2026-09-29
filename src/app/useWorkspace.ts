@@ -62,6 +62,8 @@ export interface SessionUser {
   name: string;
   email: string;
   role: User['role'];
+  /** Signed in with an admin-issued temporary password: must set a new one first. */
+  mustChangePassword?: boolean;
 }
 
 /**

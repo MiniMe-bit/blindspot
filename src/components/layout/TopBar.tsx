@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Menu, ChevronDown, ChevronRight, Check, Settings2, RotateCcw, LogOut, LayoutGrid, KeyRound } from 'lucide-react';
+import { Menu, ChevronDown, ChevronRight, Check, Settings2, RotateCcw, LogOut, LayoutGrid, KeyRound, Users } from 'lucide-react';
 import type { ClientOrg, User } from '../../types';
 import { CROSS_CLIENT_ROUTES, ROUTES, sectionOf, type RouteId } from '../../app/routes';
 import { Dropdown, MenuDivider, MenuItem, MenuLabel } from '../ui/Dropdown';
 import { ClientLogo } from '../ui/ClientLogo';
 import { ChangePasswordModal } from './ChangePasswordModal';
+import { HuntersAdminModal } from './HuntersAdminModal';
 
 interface TopBarProps {
   route: RouteId;
@@ -36,6 +37,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   const section = sectionOf(route);
   const clientScoped = !CROSS_CLIENT_ROUTES.includes(route);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [huntersOpen, setHuntersOpen] = useState(false);
 
   return (
     <header className="no-print sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-canvas/95 px-4 backdrop-blur sm:px-6">
@@ -140,6 +142,17 @@ export const TopBar: React.FC<TopBarProps> = ({
                   {currentUser.email || 'No email on file'} · {capitalize(currentUser.role)}
                 </div>
               </div>
+              {currentUser.role === 'admin' && (
+                <MenuItem
+                  icon={Users}
+                  onClick={() => {
+                    close();
+                    setHuntersOpen(true);
+                  }}
+                >
+                  Manage hunters
+                </MenuItem>
+              )}
               <MenuItem
                 icon={KeyRound}
                 onClick={() => {
@@ -173,6 +186,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         </Dropdown>
       </div>
       {passwordOpen && <ChangePasswordModal onClose={() => setPasswordOpen(false)} />}
+      {huntersOpen && <HuntersAdminModal currentUserId={currentUser.id} onClose={() => setHuntersOpen(false)} />}
     </header>
   );
 };

@@ -4,8 +4,20 @@ import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { blockPrivateFiles, securityHeaders } from './server/security';
-import { changePasswordHandler, ensureInitialUsers, loginHandler, logoutHandler, meHandler, requireAuth } from './server/auth';
+import { blockPrivateFiles, requireJsonForWrites, securityHeaders } from './server/security';
+import {
+  changePasswordHandler,
+  createUserHandler,
+  ensureInitialUsers,
+  listUsersHandler,
+  loginHandler,
+  logoutHandler,
+  meHandler,
+  requireAdmin,
+  requireAuth,
+  resetPasswordHandler,
+  unlockHandler,
+} from './server/auth';
 
 dotenv.config();
 
@@ -19,6 +31,8 @@ app.disable('x-powered-by');
 app.use(securityHeaders);
 // Must run before Vite: stops the dev server from serving data/users.json, credentials, server code.
 app.use(blockPrivateFiles);
+// API writes must be JSON: a form on another site cannot send that, which blocks cross-site request forgery.
+app.use(requireJsonForWrites);
 
 // Small JSON bodies everywhere; large bodies (document uploads) only for signed-in AI routes below.
 const smallJson = express.json({ limit: '100kb' });
@@ -30,6 +44,13 @@ app.post('/api/auth/login', loginHandler);
 app.post('/api/auth/logout', logoutHandler);
 app.get('/api/auth/me', meHandler);
 app.post('/api/auth/change-password', changePasswordHandler);
+
+// Admin only: manage hunter accounts.
+app.get('/api/admin/users', requireAdmin, listUsersHandler);
+app.post('/api/admin/users', requireAdmin, createUserHandler);
+app.post('/api/admin/users/:id/reset-password', requireAdmin, resetPasswordHandler);
+app.post('/api/admin/users/:id/unlock', requireAdmin, unlockHandler);
+
 app.use('/api/ai', requireAuth, express.json({ limit: '25mb' }));
 
 // Initialize Gemini Client with User-Agent as instructed

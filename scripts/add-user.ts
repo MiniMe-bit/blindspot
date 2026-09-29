@@ -3,8 +3,8 @@
  *
  *   npm run user:add -- <username> "<Full Name>" <analyst|lead|admin> [email]
  *
- * The password is read from BLINDSPOT_PASSWORD if set, otherwise a random one is generated
- * and printed once.
+ * The password is read from BLINDSPOT_PASSWORD if set, otherwise a random temporary password is
+ * generated, printed once, and must be changed at the next sign-in. Resetting ends existing sessions.
  */
 import { generatePassword, hashPassword, readUsers, writeUsers, type Role } from '../server/auth';
 
@@ -27,9 +27,10 @@ if (password.length < 10) {
 const users = readUsers();
 const existing = users.find((u) => u.username === username);
 const { salt, hash } = hashPassword(password);
+const temporary = !process.env.BLINDSPOT_PASSWORD;
 
 if (existing) {
-  Object.assign(existing, { name, role, salt, hash, email: emailArg ?? existing.email });
+  Object.assign(existing, { name, role, salt, hash, email: emailArg ?? existing.email, mustChangePassword: temporary, tokenVersion: (existing.tokenVersion ?? 0) + 1 });
 } else {
   users.push({
     id: `user-${Date.now()}`,
@@ -40,9 +41,11 @@ if (existing) {
     salt,
     hash,
     createdAt: new Date().toISOString(),
+    mustChangePassword: temporary,
+    tokenVersion: 0,
   });
 }
 writeUsers(users);
 
 console.log(`${existing ? 'Updated' : 'Created'} ${username} (${role}).`);
-if (!process.env.BLINDSPOT_PASSWORD) console.log(`Password: ${password}`);
+if (temporary) console.log(`Temporary password (must be changed at next sign-in): ${password}`);

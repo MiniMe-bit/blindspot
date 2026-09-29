@@ -35,10 +35,10 @@ export async function login(username: string, password: string): Promise<Session
 }
 
 export async function logout(): Promise<void> {
-  await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => undefined);
+  await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => undefined);
 }
 
-export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+export async function changePassword(currentPassword: string, newPassword: string): Promise<SessionUser> {
   let res: Response;
   try {
     res = await apiFetch('/api/auth/change-password', {
@@ -51,4 +51,5 @@ export async function changePassword(currentPassword: string, newPassword: strin
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Could not change the password (HTTP ${res.status}).`);
+  return data.user;
 }
